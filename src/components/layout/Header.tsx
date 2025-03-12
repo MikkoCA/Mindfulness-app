@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useAuth0 } from '@/components/auth/Auth0Provider';
+import { getCurrentUser, logoutUser, User } from '@/lib/auth0';
 import { useRouter } from 'next/navigation';
 
 const Header = () => {
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, isAuthenticated, login, logout, loading } = useAuth0();
 
   const isActive = (path: string) => {
     return pathname === path 
@@ -20,7 +20,9 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
-      logout();
+      await logoutUser();
+      setUser(null);
+      router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -29,6 +31,21 @@ const Header = () => {
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+
+  // Check authentication status whenever the pathname changes
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setUser(null);
+      }
+    };
+
+    checkAuth();
+  }, [pathname]); // Re-run when pathname changes
 
   return (
     <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-16 z-50">
@@ -84,9 +101,9 @@ const Header = () => {
           </button>
           
           <div className="hidden md:flex items-center space-x-4">
-            {!loading && isAuthenticated && user ? (
+            {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-gray-700">Welcome, {user.name && user.name.split(' ')[0]}</span>
+                <span className="text-gray-700">Welcome, {user.name.split(' ')[0]}</span>
                 <button 
                   onClick={handleLogout}
                   className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm 
@@ -101,8 +118,8 @@ const Header = () => {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={() => login()}
+              <Link 
+                href="/auth/login" 
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm 
                   text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-emerald-500 
                   hover:from-emerald-500 hover:to-teal-500 transition-all duration-300 ease-in-out
@@ -112,7 +129,7 @@ const Header = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                 </svg>
                 Login
-              </button>
+              </Link>
             )}
           </div>
         </div>
@@ -168,9 +185,9 @@ const Header = () => {
             
             {/* Mobile Auth Buttons */}
             <div className="pt-2 mt-2 border-t border-gray-200">
-              {!loading && isAuthenticated && user ? (
+              {user ? (
                 <div className="space-y-3">
-                  <p className="text-gray-700 px-4">Welcome, {user.name && user.name.split(' ')[0]}</p>
+                  <p className="text-gray-700 px-4">Welcome, {user.name.split(' ')[0]}</p>
                   <button 
                     onClick={() => {
                       handleLogout();
@@ -185,18 +202,16 @@ const Header = () => {
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={() => {
-                    login();
-                    setIsMenuOpen(false);
-                  }}
+                <Link 
+                  href="/auth/login"
+                  onClick={() => setIsMenuOpen(false)}
                   className="w-full flex items-center py-2 px-4 rounded-md text-white bg-gradient-to-r from-teal-500 to-emerald-500"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                   </svg>
                   Login
-                </button>
+                </Link>
               )}
             </div>
           </nav>

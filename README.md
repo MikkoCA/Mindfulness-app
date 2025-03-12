@@ -1,6 +1,6 @@
 # Mindfulness Chatbot
 
-A modern web application that combines AI-powered chat interactions with mood tracking capabilities to support mental wellness and mindfulness practices. Fully responsive and optimized for mobile devices, including iPhone.
+A modern web application that combines AI-powered chat interactions with mood tracking capabilities to support mental wellness and mindfulness practices.
 
 ## Features
 
@@ -15,21 +15,6 @@ A modern web application that combines AI-powered chat interactions with mood tr
 - Notes feature for personal reflections
 - Visual mood history and trends
 - Insights dashboard with weekly and monthly analytics
-
-### Mobile Optimization
-- Responsive design adapting to all screen sizes
-- iOS-specific optimizations for iPhone compatibility
-- Touch-friendly navigation with 44px minimum tap targets
-- Mobile-optimized inputs preventing keyboard zoom issues
-- Safe area handling for notches and dynamic islands
-- Enhanced performance on mobile networks
-- Optimized for both portrait and landscape orientations
-
-### Authentication System
-- Secure Auth0 integration with Vercel deployment
-- Persistent login sessions
-- Protected routes with mobile-aware redirects
-- Optimized authentication flow for mobile devices
 
 ## Prerequisites
 
@@ -55,12 +40,6 @@ yarn install
 3. Create a `.env.local` file in the root directory with your API keys:
 ```env
 OPENROUTER_API_KEY=your_openrouter_api_key
-AUTH0_SECRET=your_auth0_secret
-AUTH0_BASE_URL=https://your-vercel-app-url.vercel.app
-AUTH0_ISSUER_BASE_URL=https://your-tenant.auth0.com
-AUTH0_CLIENT_ID=your_auth0_client_id
-AUTH0_CLIENT_SECRET=your_auth0_client_secret
-NEXT_PUBLIC_APP_URL=https://your-vercel-app-url.vercel.app
 ```
 
 ## Running the Application
@@ -74,7 +53,6 @@ yarn dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
-For mobile testing, you can use your local IP address with the port number to access from a mobile device on the same network.
 
 ## Project Structure
 
@@ -82,22 +60,13 @@ For mobile testing, you can use your local IP address with the port number to ac
 mindfulness-chatbot/
 ├── src/
 │   ├── app/                 # Next.js app directory
-│   │   ├── api/             # API routes including Auth0 callback
-│   │   ├── auth/            # Authentication pages
-│   │   ├── mood-tracker/    # Mood tracking feature
-│   │   └── chat/            # Chat interface
-│   ├── components/          # Reusable React components
-│   │   ├── auth/            # Authentication components including Auth0Provider
-│   │   ├── layout/          # Layout components (Header, Sidebar)
-│   │   └── chat/            # Chat interface components
-│   ├── lib/                 # Utility libraries
-│   │   ├── auth0.ts         # Auth0 utilities
-│   │   ├── auth0Client.ts   # Auth0 client for Vercel integration
-│   │   └── openrouter.ts    # OpenRouter API integration
-│   ├── types/               # TypeScript type definitions
-│   └── utils/               # Utility functions
-├── public/                  # Static files
-└── package.json             # Project dependencies and scripts
+│   │   ├── mood/           # Mood tracking feature
+│   │   └── chat/           # Chat interface
+│   ├── components/         # Reusable React components
+│   ├── types/             # TypeScript type definitions
+│   └── utils/             # Utility functions
+├── public/                # Static files
+└── package.json          # Project dependencies and scripts
 ```
 
 ## Key Features Usage
@@ -106,7 +75,6 @@ mindfulness-chatbot/
 - Navigate to the chat section
 - Type your message or select from suggested responses
 - Interact with the AI assistant for mindfulness guidance
-- Mobile-optimized chat input prevents keyboard issues
 
 ### Mood Tracking
 - Access the mood tracking section
@@ -114,46 +82,19 @@ mindfulness-chatbot/
 - Add relevant factors affecting your mood
 - Add optional notes for context
 - View your mood history and insights
-- Optimized for touch interaction on mobile devices
-
-### Authentication
-- Secure login and signup through Auth0
-- Protected routes requiring authentication
-- Persistent sessions across devices
-- Mobile-friendly authentication flow
-
-## Mobile Compatibility
-
-The application is fully optimized for mobile devices:
-
-- **Responsive Design**: Adapts fluidly to different screen sizes from phones to tablets to desktops
-- **Touch Interface**: All interactive elements are sized appropriately for touch (44px minimum)
-- **iOS Enhancements**:
-  - Safe area insets for notches and home indicators
-  - Momentum scrolling for native feel
-  - Fixed font sizing to prevent zoom when focusing on inputs
-  - Keyboard awareness to prevent input field obstruction
-- **Performance**: Optimized asset loading and network handling for mobile connections
-- **Offline Support**: Basic functionality remains available even with intermittent connectivity
 
 ## Deployment
 
-The application is configured for seamless deployment on Vercel:
+The easiest way to deploy this application is using the [Vercel Platform](https://vercel.com/new).
 
 1. Push your code to a GitHub repository
 2. Sign up on Vercel with your GitHub account
 3. Import your repository
 4. Configure environment variables:
-   - Add all required Auth0 environment variables
    - Add your `OPENROUTER_API_KEY`
-   - Set `NEXT_PUBLIC_APP_URL` to your Vercel deployment URL
-5. In your Auth0 dashboard:
-   - Update Allowed Callback URLs to include: `https://your-vercel-app-url.vercel.app/api/auth/callback`
-   - Update Allowed Logout URLs to include: `https://your-vercel-app-url.vercel.app`
-   - Update Allowed Web Origins to include: `https://your-vercel-app-url.vercel.app`
-6. Deploy
+5. Deploy
 
-The application will be automatically deployed and available at your Vercel URL.
+The application will be automatically deployed and available at a `.vercel.app` domain.
 
 ## Contributing
 

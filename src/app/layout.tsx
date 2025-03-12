@@ -1,8 +1,7 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
-import { Auth0Provider } from "@/components/auth/Auth0Provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,14 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mindfulness Chatbot",
   description: "A chatbot for mindfulness exercises and mental wellbeing",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: "cover"
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover"
+  },
 };
 
 export default function RootLayout({
@@ -35,12 +33,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Auth0Provider>
-          <Header />
-          <main className="pt-16">
-            {children}
-          </main>
-        </Auth0Provider>
+        <Header />
+        <main className="pt-16">
+          {children}
+        </main>
       </body>
     </html>
   );
