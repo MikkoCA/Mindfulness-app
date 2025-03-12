@@ -77,6 +77,7 @@ export default function MoodTracker() {
   const [view, setView] = useState<'log' | 'history' | 'insights'>('log');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [factorStats, setFactorStats] = useState<Record<string, { count: number; avgMood: number }>>({});
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -92,6 +93,20 @@ export default function MoodTracker() {
       setMoodHistory(entries);
       calculateFactorStats(entries);
     }
+
+    // Check if we're on mobile
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    // Initial check
+    checkIfMobile();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', checkIfMobile);
+
+    // Clean up event listener
+    return () => window.removeEventListener('resize', checkIfMobile);
   }, []);
 
   const calculateFactorStats = (entries: MoodEntry[]) => {
@@ -149,15 +164,30 @@ export default function MoodTracker() {
     setView('history');
   };
 
-  const getMoodTrend = () => {
-    if (moodHistory.length < 2) return null;
-    
-    const recent = moodHistory[0].moodValue;
-    const previous = moodHistory[1].moodValue;
-    
-    if (recent > previous) return { trend: 'improving', icon: '📈' };
-    if (recent < previous) return { trend: 'declining', icon: '📉' };
-    return { trend: 'stable', icon: '📊' };
+  const getMoodTrend = (): string => {
+    try {
+      // Only calculate if we have at least 3 entries
+      if (moodHistory.length < 3) return 'Not enough data';
+      
+      // Get the last 5 entries, sorted by date
+      const recentEntries = [...moodHistory]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 5);
+      
+      if (recentEntries.length < 2) return 'Not enough data';
+      
+      // Calculate if mood is improving, worsening, or stable
+      const oldestScore = recentEntries[recentEntries.length - 1].moodValue;
+      const newestScore = recentEntries[0].moodValue;
+      const difference = newestScore - oldestScore;
+      
+      if (difference >= 0.5) return '🔼 Improving';
+      if (difference <= -0.5) return '🔽 Declining';
+      return '➡️ Stable';
+    } catch (error) {
+      console.error('Error calculating mood trend:', error);
+      return 'Not available';
+    }
   };
 
   const getAverageMood = (days: number) => {
@@ -374,8 +404,8 @@ export default function MoodTracker() {
           >
             <h3 className="text-sm font-medium text-gray-500 mb-2">Current Trend</h3>
             <div className="flex items-center space-x-2">
-              <span className="text-2xl">{trend?.icon}</span>
-              <span className="text-xl font-semibold capitalize">{trend?.trend || 'Not enough data'}</span>
+              <span className="text-2xl">{trend.includes('🔼') ? '🔼' : trend.includes('��') ? '🔽' : '➡️'}</span>
+              <span className="text-xl font-semibold capitalize">{trend.replace('🔼', 'Improving').replace('🔽', 'Declining').replace('➡️', 'Stable') || 'Not enough data'}</span>
             </div>
           </motion.div>
           
@@ -464,35 +494,84 @@ export default function MoodTracker() {
 
   return (
     <AuthCheck>
-      <div className="flex bg-white min-h-screen">
-        <Sidebar />
-        <div className="flex-1 ml-64 p-8 bg-gray-50">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Mood Tracker</h1>
-              <div className="flex space-x-4">
-                {['log', 'history', 'insights'].map((viewOption) => (
-                  <motion.button
-                    key={viewOption}
-                    onClick={() => setView(viewOption as typeof view)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`px-4 py-2 rounded-md transition-all ${
-                      view === viewOption
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                    }`}
-                  >
-                    {viewOption.charAt(0).toUpperCase() + viewOption.slice(1)}
-                  </motion.button>
-                ))}
+      <div className="flex flex-col md:flex-row min-h-screen bg-white">
+        {/* Sidebar - hidden on mobile, shown on desktop */}
+        <div className="hidden md:block md:w-64 md:min-h-screen">
+          <Sidebar />
+        </div>
+        
+        {/* Main content - full width on mobile, with left margin on desktop */}
+        <div className="flex-1 md:ml-64 p-4 md:p-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Mood Tracker</h1>
+          
+          {/* Mood stats summary - adjust layout for mobile */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white rounded-lg shadow-md p-4 text-center">
+              <div className="text-lg md:text-xl font-semibold text-blue-700">{getMoodTrend()}</div>
+              <div className="text-sm text-gray-500">Recent Trend</div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-4 text-center">
+              <div className="text-lg md:text-xl font-semibold">
+                {getAverageMood(7) ? `${getAverageMood(7)}/5` : '-'}
+              </div>
+              <div className="text-sm text-gray-500">7-Day Avg</div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-4 text-center">
+              <div className="text-lg md:text-xl font-semibold">
+                {getAverageMood(30) ? `${getAverageMood(30)}/5` : '-'}
+              </div>
+              <div className="text-sm text-gray-500">30-Day Avg</div>
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-4 text-center">
+              <div className="text-lg md:text-xl font-semibold">{moodHistory.length}</div>
+              <div className="text-sm text-gray-500">Total Entries</div>
+            </div>
+          </div>
+          
+          {/* Use tabs for different sections on mobile */}
+          {isMobile ? (
+            <div className="mb-6">
+              <div className="flex border-b border-gray-200 mb-4">
+                <button 
+                  onClick={() => setView('log')} 
+                  className={`px-4 py-2 ${view === 'log' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+                >
+                  Log Mood
+                </button>
+                <button 
+                  onClick={() => setView('history')} 
+                  className={`px-4 py-2 ${view === 'history' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+                >
+                  History
+                </button>
+                <button 
+                  onClick={() => setView('insights')} 
+                  className={`px-4 py-2 ${view === 'insights' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
+                >
+                  Insights
+                </button>
+              </div>
+              
+              {view === 'log' && renderMoodLog()}
+              {view === 'history' && renderMoodHistory()}
+              {view === 'insights' && renderInsights()}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="col-span-1">
+                {renderMoodLog()}
+              </div>
+              <div className="col-span-1">
+                {renderMoodHistory()}
+              </div>
+              <div className="col-span-1">
+                {renderInsights()}
               </div>
             </div>
-
-            {view === 'log' && renderMoodLog()}
-            {view === 'history' && renderMoodHistory()}
-            {view === 'insights' && renderInsights()}
-          </div>
+          )}
         </div>
       </div>
     </AuthCheck>

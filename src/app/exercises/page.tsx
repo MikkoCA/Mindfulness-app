@@ -159,22 +159,22 @@ export default function ExercisesPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Mindfulness Exercises</h1>
+    <div className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Mindfulness Exercises</h1>
       
-      <Card className="mb-8">
+      <Card className="mb-6 sm:mb-8">
         <CardHeader>
           <CardTitle>Generate a New Exercise</CardTitle>
           <CardDescription>Customize and create a new mindfulness exercise</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-md">
-              <p className="font-medium">Error: {error}</p>
+            <div className="mb-4 p-3 sm:p-4 bg-red-50 text-red-700 rounded-md">
+              <p className="font-medium text-sm sm:text-base">Error: {error}</p>
               {detailedError && (
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-sm">Show technical details</summary>
-                  <pre className="mt-2 p-2 bg-gray-100 rounded-md text-xs overflow-auto max-h-60">
+                  <summary className="cursor-pointer text-xs sm:text-sm">Show technical details</summary>
+                  <pre className="mt-2 p-2 bg-gray-100 rounded-md text-xs overflow-auto max-h-40 sm:max-h-60">
                     {detailedError}
                   </pre>
                 </details>
@@ -213,63 +213,71 @@ export default function ExercisesPage() {
             </div>
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col sm:flex-row sm:justify-between gap-3">
           <Button 
-            onClick={generateExercise} 
+            onClick={generateExercise}
             disabled={loading}
-            className="w-full"
+            className="w-full sm:w-auto flex items-center justify-center"
           >
-            {loading ? 'Generating...' : 'Generate Exercise'}
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating...
+              </>
+            ) : (
+              <>Generate Exercise</>
+            )}
           </Button>
+          
+          <div className="text-sm text-gray-500 w-full sm:w-auto text-center sm:text-right">
+            Exercises are saved locally on your device
+          </div>
         </CardFooter>
       </Card>
       
-      <h2 className="text-2xl font-semibold mb-4">Your Exercises</h2>
-      {exercises.length === 0 ? (
-        <div className="text-center py-10 border border-dashed rounded-lg">
-          <p className="text-gray-500">No exercises yet. Generate your first one!</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exercises.map((exercise) => {
-            // Check if exercise is completed
-            const completedExercises = JSON.parse(localStorage.getItem('completed_exercises') || '[]');
-            const isCompleted = completedExercises.includes(exercise.id);
-
-            return (
-              <Link href={`/exercises/${exercise.id}`} key={exercise.id}>
-                <Card className="h-full cursor-pointer hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="line-clamp-2">{exercise.title}</CardTitle>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                        {exercise.category}
-                      </span>
-                      <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-                        {exercise.duration} min
-                      </span>
-                      <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full capitalize">
-                        {exercise.difficulty}
-                      </span>
-                      {isCompleted && (
-                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                          Completed
-                        </span>
-                      )}
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold mb-4">Your Exercises</h2>
+        
+        {exercises.length === 0 ? (
+          <div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-gray-600">You haven't created any exercises yet.</p>
+            <p className="text-gray-500 text-sm mt-2">Generate one above to get started!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {exercises.map((exercise) => (
+              <Card key={exercise.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{exercise.title}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {exercise.duration} min · {exercise.difficulty} · {
+                          EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category
+                        }
+                      </CardDescription>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 line-clamp-3">{exercise.description}</p>
-                  </CardContent>
-                  <CardFooter className="border-t pt-4">
-                    <Button variant="outline" className="w-full">View Details</Button>
-                  </CardFooter>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-teal-100 text-teal-800">
+                      {new Date(exercise.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-2 text-sm">
+                  <p className="line-clamp-2">{exercise.description}</p>
+                </CardContent>
+                <CardFooter className="pt-2">
+                  <Link href={`/exercises/${exercise.id}`} className="w-full">
+                    <Button variant="outline" className="w-full">Start Exercise</Button>
+                  </Link>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

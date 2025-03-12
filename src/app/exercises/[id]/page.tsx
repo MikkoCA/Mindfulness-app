@@ -18,7 +18,18 @@ interface Exercise {
   benefits?: string[];
   preparation?: string;
   tips?: string[];
+  stepTimings?: number[];
+  createdAt: number;
 }
+
+// Exercise categories
+const EXERCISE_TYPES = [
+  { value: 'breathing', label: 'Breathing' },
+  { value: 'meditation', label: 'Meditation' },
+  { value: 'body-scan', label: 'Body Scan' },
+  { value: 'mindful-walking', label: 'Mindful Walking' },
+  { value: 'gratitude', label: 'Gratitude' },
+];
 
 // Define step timing for different exercise types
 const DEFAULT_STEP_TIMING: Record<string, number[]> = {
@@ -507,30 +518,21 @@ export default function ExercisePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
+        <div className="flex justify-center items-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+        </div>
       </div>
     );
   }
 
   if (error || !exercise) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Link href="/exercises">
-          <button className="flex items-center px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-800 hover:bg-gray-50 mb-4">
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Exercises
-          </button>
-        </Link>
-        <div className="bg-white rounded-lg shadow-md p-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Error</h1>
-          <p className="text-gray-600 mb-6">{error || 'Exercise not found'}</p>
-          <Link href="/exercises">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-              Go to Exercises
-            </button>
+      <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
+          <p className="text-red-700">{error || 'Exercise not found'}</p>
+          <Link href="/exercises" className="text-blue-600 hover:underline mt-2 inline-block">
+            ← Back to exercises
           </Link>
         </div>
       </div>
@@ -546,237 +548,143 @@ export default function ExercisePage() {
   const wasCompletedBefore = checkIfCompleted();
 
   return (
-    <div className="container mx-auto px-4 py-8 mb-16">
-      <Link href="/exercises">
-        <button className="flex items-center px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-800 hover:bg-gray-50 mb-4">
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Exercises
-        </button>
-      </Link>
-      
-      <div className="max-w-4xl mx-auto">
-        {/* Exercise Header */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-          <div className="p-6">
-            <div className="flex justify-between items-start">
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">{exercise.title}</h1>
-              {(wasCompletedBefore || completed) && (
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                  Completed
-                </span>
-              )}
-            </div>
-            
-            <div className="flex items-center mb-4 text-sm">
-              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">{exercise.category}</span>
-              <span className="mx-2">•</span>
-              <span className="text-gray-600">{exercise.duration} min</span>
-              <span className="mx-2">•</span>
-              <span className="capitalize text-gray-600">{exercise.difficulty}</span>
-            </div>
-            
-            <p className="text-gray-700 mb-6">{exercise.description}</p>
-            
-            {/* Benefits Section */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-2">Benefits</h3>
-              <ul className="list-disc pl-5 space-y-1 text-gray-700">
-                {exercise.benefits?.map((benefit, index) => (
-                  <li key={index}>{benefit}</li>
-                ))}
-              </ul>
-            </div>
-            
-            {/* Preparation Section */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-2">Preparation</h3>
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 text-gray-700">
-                {exercise.preparation}
-              </div>
+    <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
+      <div className="space-y-6 sm:space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <Link href="/exercises" className="text-blue-600 hover:underline inline-flex items-center text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to exercises
+            </Link>
+            <h1 className="text-2xl sm:text-3xl font-bold mt-2">{exercise.title}</h1>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full">
+                {EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category}
+              </span>
+              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
+                {exercise.duration} min
+              </span>
+              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full capitalize">
+                {exercise.difficulty}
+              </span>
             </div>
           </div>
         </div>
         
-        {/* Exercise Practice Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-          <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Practice Guide</h2>
-            
-            {/* Progress bar */}
-            <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
-              <div 
-                className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-linear"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-            
-            {/* Timer and controls */}
-            <div className="bg-gray-50 p-6 rounded-lg mb-6 text-center">
-              <div className="text-5xl font-mono mb-4 font-bold text-gray-800">{formatTime(time)}</div>
-              
-              {exercise.category === 'breathing' && isActive && !isPaused && (
-                <div className="mb-4">
-                  <div className={`text-lg font-medium mb-2 ${
-                    breathePhase === 'inhale' ? 'text-blue-600' :
-                    breathePhase === 'hold' ? 'text-purple-600' :
-                    breathePhase === 'exhale' ? 'text-green-600' : 'text-gray-600'
-                  }`}>
-                    {breathePhase === 'inhale' ? 'Inhale' :
-                     breathePhase === 'hold' ? 'Hold' :
-                     breathePhase === 'exhale' ? 'Exhale' : 'Rest'}
-                  </div>
-                  <div className={`w-full h-6 rounded-full overflow-hidden border ${
-                    breathePhase === 'inhale' ? 'border-blue-300' :
-                    breathePhase === 'hold' ? 'border-purple-300' :
-                    breathePhase === 'exhale' ? 'border-green-300' : 'border-gray-300'
-                  }`}>
-                    <div 
-                      className={`h-full ${
-                        breathePhase === 'inhale' ? 'bg-blue-300 animate-grow-width' :
-                        breathePhase === 'hold' ? 'bg-purple-300 animate-hold w-full' :
-                        breathePhase === 'exhale' ? 'bg-green-300 animate-shrink-width' : 'bg-gray-100 w-0'
-                      }`}
-                    ></div>
-                  </div>
-                  <div className="text-sm text-gray-500 mt-1">Breath cycle: {breatheCount}</div>
-                </div>
-              )}
-              
-              <div className="flex justify-center space-x-4">
-                {!isActive && !isPaused ? (
-                  <button 
-                    onClick={handleStart}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Start
-                  </button>
-                ) : isPaused ? (
-                  <button 
-                    onClick={handleResume}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Resume
-                  </button>
-                ) : (
-                  <button 
-                    onClick={handlePause}
-                    className="px-6 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-                  >
-                    Pause
-                  </button>
-                )}
-                
-                <button 
-                  onClick={handleReset}
-                  className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
-                >
-                  Reset
-                </button>
-              </div>
-              
-              {completed && (
-                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                  <h3 className="text-lg font-semibold text-green-800 mb-2">Great job!</h3>
-                  <p className="text-green-700">You&apos;ve completed this exercise. How do you feel?</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Current step highlight */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3">Current Focus</h3>
-              <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 text-gray-800 mb-4">
-                {processedSteps[currentStep] ? 
-                  (typeof processedSteps[currentStep] === 'string' ? 
-                    processedSteps[currentStep] : 
-                    (processedSteps[currentStep] as any).instruction || "Follow along with the timer"
-                  ) : 
-                  "Follow along with the timer"
-                }
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Description */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 sm:p-6">
+                <h2 className="text-xl font-semibold mb-3">Description</h2>
+                <p className="text-gray-700">{exercise.description}</p>
               </div>
             </div>
             
-            {/* Step-by-step instructions */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold mb-3">Step-by-Step Instructions</h3>
-              <ol className="space-y-4">
-                {processedSteps.map((step, index) => {
-                  // Handle both string and object steps
-                  const stepText = typeof step === 'string' ? 
-                    step : 
-                    (step as any).instruction || "Follow this step";
-                  
-                  return (
-                    <li key={index} className={`pl-6 ${currentStep === index ? 'bg-yellow-50 p-3 rounded-md border-l-4 border-yellow-500' : ''}`}>
-                      <div className="flex items-start">
-                        <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full mr-3 mt-0.5 ${
-                          currentStep > index ? 'bg-green-500 text-white' :
-                          currentStep === index ? 'bg-yellow-500 text-white animate-pulse' :
-                          'bg-gray-200 text-gray-700'
-                        }`}>
-                          {currentStep > index ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                          ) : (
-                            index + 1
-                          )}
-                        </span>
-                        <span className={`text-gray-700 ${currentStep === index ? 'font-medium' : ''}`}>{stepText}</span>
-                      </div>
-                      {currentStep === index && index < stepTimings.length && (
-                        <div className="text-sm text-gray-500 mt-1 ml-9">
-                          {typeof step === 'object' && (step as any).duration ? 
-                            `Focus on this step for ${(step as any).duration} seconds` :
-                            `Focus on this step for approximately ${Math.floor(stepTimings[index] / 60)} minute${stepTimings[index] / 60 !== 1 ? 's' : ''}`
-                          }
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
+            {/* Preparation */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 sm:p-6">
+                <h2 className="text-xl font-semibold mb-3">Preparation</h2>
+                <p className="text-gray-700">{exercise.preparation}</p>
+              </div>
             </div>
             
-            {/* Tips Section */}
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-3">Helpful Tips</h3>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <ul className="list-disc pl-5 space-y-2 text-gray-700">
-                  {exercise.tips?.map((tip, index) => (
-                    <li key={index}>{tip}</li>
+            {/* Benefits */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-4 sm:p-6">
+                <h2 className="text-xl font-semibold mb-3">Benefits</h2>
+                <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                  {exercise.benefits?.map((benefit, index) => (
+                    <li key={index}>{benefit}</li>
                   ))}
                 </ul>
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* Next Steps */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold mb-3">After Completing This Exercise</h2>
-            <p className="text-gray-700 mb-4">
-              Take a moment to reflect on how you feel after practicing. Notice any changes in your body, mind, or mood.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/mood">
-                <button className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
-                  Track Your Mood
-                </button>
-              </Link>
-              <Link href="/exercises">
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                  Find Another Exercise
-                </button>
-              </Link>
-              <Link href="/chat">
-                <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                  Chat with AI Assistant
-                </button>
-              </Link>
+          
+          {/* Timer Section */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Timer Card */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden sticky top-20">
+              <div className="p-4 sm:p-6">
+                <h2 className="text-xl font-semibold mb-4">Exercise Timer</h2>
+                
+                {/* Timer Display */}
+                <div className="mb-4">
+                  <div className="bg-gray-100 rounded-lg p-4 text-center">
+                    <div className="text-gray-700 mb-1 text-sm">Time Elapsed</div>
+                    <div className="text-3xl sm:text-4xl font-mono font-bold">{formatTime(time)}</div>
+                    <div className="mt-2 h-2 bg-gray-300 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-teal-500 to-emerald-500" 
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      {Math.floor(progress)}% complete
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Breathing Animation */}
+                {exercise.category === 'breathing' && isActive && !isPaused && (
+                  <div className="relative mb-6 w-32 h-32 mx-auto">
+                    <div className={`breathe-circle ${breathePhase}`}></div>
+                    <div className="absolute inset-0 flex items-center justify-center text-lg font-semibold">
+                      {breathePhase === 'inhale' ? 'Inhale' : 
+                       breathePhase === 'hold' ? 'Hold' : 
+                       breathePhase === 'exhale' ? 'Exhale' : 'Ready'}
+                    </div>
+                    <div className="text-center text-sm text-gray-600 mt-2">
+                      Breath: {breatheCount}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Control Buttons */}
+                <div className="flex justify-center space-x-4">
+                  {!isActive && !isPaused ? (
+                    <button 
+                      onClick={handleStart}
+                      className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Start
+                    </button>
+                  ) : isPaused ? (
+                    <button 
+                      onClick={handleResume}
+                      className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Resume
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={handlePause}
+                      className="px-4 sm:px-6 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                    >
+                      Pause
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={handleReset}
+                    className="px-4 sm:px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                  >
+                    Reset
+                  </button>
+                </div>
+                
+                {completed && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                    <h3 className="text-lg font-semibold text-green-800 mb-2">Great job!</h3>
+                    <p className="text-green-700">You&apos;ve completed this exercise. How do you feel?</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
