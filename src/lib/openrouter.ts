@@ -60,7 +60,7 @@ export const generateMindfulnessExercise = async (
   try {
     const systemPrompt = `You are a mindfulness coach specializing in ${type} exercises. 
     Create a ${duration}-minute ${type} exercise that is calming and centering. 
-    Format the response as a JSON object with the following structure:
+    Format the response as a raw JSON object with the following structure (do not include any markdown formatting or backticks):
     {
       "title": "Exercise Name",
       "description": "Brief description of the exercise",

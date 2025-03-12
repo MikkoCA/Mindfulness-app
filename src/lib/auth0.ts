@@ -40,8 +40,15 @@ const hashPassword = (password: string): string => {
 // Initialize auth
 export const initAuth = () => {
   // Initialize users storage if it doesn't exist
-  if (typeof window !== 'undefined' && !localStorage.getItem(USERS_STORAGE_KEY)) {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify({}));
+  if (typeof window !== 'undefined') {
+    const users = localStorage.getItem(USERS_STORAGE_KEY);
+    if (!users) {
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify({}));
+    }
+    // Clear current user on fresh load to prevent stale state
+    if (!users) {
+      localStorage.removeItem(CURRENT_USER_KEY);
+    }
   }
 };
 
@@ -50,22 +57,19 @@ export const getCurrentUser = async (): Promise<User | null> => {
   if (typeof window === 'undefined') return null;
   
   try {
-    const userData = localStorage.getItem(CURRENT_USER_KEY);
-    if (!userData) return null;
-
-    const user = JSON.parse(userData);
+    const currentUser = localStorage.getItem(CURRENT_USER_KEY);
+    if (!currentUser) return null;
+    
+    const userData = JSON.parse(currentUser);
+    const users = getStoredUsers();
     
     // Verify user still exists in users storage
-    const users = getStoredUsers();
-    const storedUser = users[user.id];
-    
-    if (!storedUser) {
-      // User not found in storage, clear current user
+    if (!users[userData.id]) {
       localStorage.removeItem(CURRENT_USER_KEY);
       return null;
     }
-
-    return user;
+    
+    return userData;
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;
