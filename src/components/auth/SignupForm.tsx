@@ -5,10 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signupUser, getCurrentUser } from '@/lib/auth0';
 
-// Add proper type for the error
+// Add proper types for errors
 interface AuthError {
   message: string;
   code?: string;
+}
+
+interface SignupError {
+  message: string;
+  code?: string;
+  status?: number;
+  name?: string;
 }
 
 const SignupForm = () => {
@@ -117,19 +124,20 @@ const SignupForm = () => {
       
       // Redirect to login page after successful signup
       router.push('/auth/login?signup=success');
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as SignupError;
       // Handle specific error messages
-      if (err.message === 'Email already in use') {
+      if (error.message === 'Email already in use') {
         setFieldErrors({
           ...fieldErrors,
           email: 'This email is already registered. Please use a different email or log in.'
         });
-      } else if (err.message.includes('network')) {
+      } else if (error.message.includes('network')) {
         setError({ message: 'Network error. Please check your connection and try again.' });
       } else {
-        setError({ message: err.message || 'Failed to sign up. Please try again.' });
+        setError({ message: error.message || 'Failed to sign up. Please try again.' });
       }
-      console.error('Signup error:', err);
+      console.error('Signup error:', error);
     } finally {
       setIsLoading(false);
     }

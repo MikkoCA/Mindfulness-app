@@ -5,10 +5,17 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginUser, getCurrentUser } from '@/lib/auth0';
 
-// Add proper type for the error
+// Add proper types for errors
 interface AuthError {
   message: string;
   code?: string;
+}
+
+interface LoginError {
+  message: string;
+  code?: string;
+  status?: number;
+  name?: string;
 }
 
 const LoginForm = () => {
@@ -88,18 +95,19 @@ const LoginForm = () => {
       
       // Redirect to home after successful login
       router.push('/');
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as LoginError;
       // Handle specific error messages from the auth service
-      if (err.message === 'Invalid credentials') {
+      if (error.message === 'Invalid credentials') {
         setError({ message: 'Invalid email or password. Please try again.' });
-      } else if (err.message === 'User not found') {
+      } else if (error.message === 'User not found') {
         setError({ message: 'No account found with this email. Please sign up first.' });
-      } else if (err.message.includes('network')) {
+      } else if (error.message.includes('network')) {
         setError({ message: 'Network error. Please check your connection and try again.' });
       } else {
         setError({ message: 'Failed to log in. Please try again later.' });
       }
-      console.error('Login error:', err);
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }

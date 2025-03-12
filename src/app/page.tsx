@@ -9,38 +9,37 @@ import { Exercise, MoodEntry, ActivityLog } from '@/types';
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [recentMoods, setRecentMoods] = useState<MoodEntry[]>([]);
   const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
   const [recommendedExercises, setRecommendedExercises] = useState<Exercise[]>([]);
   const [weeklyMoodAverage, setWeeklyMoodAverage] = useState<number | null>(null);
-
-  const generateRecommendations = (exercises: Exercise[]) => {
-    // Get user's mood trend
-    const moodTrend = weeklyMoodAverage || 3;
-    
-    // Filter and sort exercises based on mood and previous completion
-    const completedExercises = new Set(JSON.parse(localStorage.getItem('completed_exercises') || '[]'));
-    
-    const recommended = exercises
-      .filter(exercise => !completedExercises.has(exercise.id))
-      .sort((a, b) => {
-        if (moodTrend <= 2.5) {
-          return (a.duration - b.duration) || 
-                 (a.difficulty === 'beginner' ? -1 : 1);
-        } else if (moodTrend >= 4) {
-          return (b.duration - a.duration) || 
-                 (b.difficulty === 'advanced' ? -1 : 1);
-        }
-        return Math.random() - 0.5;
-      });
-
-    setRecommendedExercises(recommended.slice(0, 3));
-  };
 
   useEffect(() => {
     const fetchUser = async () => {
       const currentUser = await getCurrentUser();
       setUser(currentUser);
+    };
+    
+    const generateRecommendations = (exercises: Exercise[]) => {
+      // Get user's mood trend
+      const moodTrend = weeklyMoodAverage || 3;
+      
+      // Filter and sort exercises based on mood and previous completion
+      const completedExercises = new Set(JSON.parse(localStorage.getItem('completed_exercises') || '[]'));
+      
+      const recommended = exercises
+        .filter(exercise => !completedExercises.has(exercise.id))
+        .sort((a, b) => {
+          if (moodTrend <= 2.5) {
+            return (a.duration - b.duration) || 
+                   (a.difficulty === 'beginner' ? -1 : 1);
+          } else if (moodTrend >= 4) {
+            return (b.duration - a.duration) || 
+                   (b.difficulty === 'advanced' ? -1 : 1);
+          }
+          return Math.random() - 0.5;
+        });
+
+      setRecommendedExercises(recommended.slice(0, 3));
     };
     
     fetchUser();
@@ -49,7 +48,6 @@ export default function Home() {
     const savedMoods = localStorage.getItem('mood_entries');
     if (savedMoods) {
       const moodEntries = JSON.parse(savedMoods);
-      setRecentMoods(moodEntries.slice(0, 5)); // Get 5 most recent moods
       calculateWeeklyMoodAverage(moodEntries);
     }
 
@@ -62,7 +60,7 @@ export default function Home() {
 
     // Generate activity log
     generateActivityLog();
-  }, []); // Removed generateRecommendations from dependencies
+  }, [weeklyMoodAverage]); // Added weeklyMoodAverage as dependency since it's used in generateRecommendations
 
   const calculateWeeklyMoodAverage = (moods: MoodEntry[]) => {
     const now = new Date();
@@ -239,7 +237,7 @@ export default function Home() {
             <Link href="/mood">
               <div className="bg-purple-50 p-6 rounded-lg hover:bg-purple-100 transition-colors">
                 <h3 className="font-semibold text-purple-800 mb-2">Track Your Mood</h3>
-                <p className="text-sm text-gray-700">Log how you're feeling right now</p>
+                <p className="text-sm text-gray-700">Log how you&apos;re feeling right now</p>
               </div>
             </Link>
             

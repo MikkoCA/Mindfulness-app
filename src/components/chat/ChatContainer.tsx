@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Message, ChatMessage } from '@/types';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -26,47 +26,12 @@ const ChatContainer = ({ initialMessage = "" }: ChatContainerProps) => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat history on mount
-  useEffect(() => {
-    loadChatHistory();
+  const updateSessions = useCallback((updatedSessions: ChatSession[]) => {
+    setSessions(updatedSessions);
+    localStorage.setItem('chat_sessions', JSON.stringify(updatedSessions));
   }, []);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadChatHistory = () => {
-    try {
-      // Load sessions
-      const savedSessions = localStorage.getItem('chat_sessions');
-      if (savedSessions) {
-        setSessions(JSON.parse(savedSessions));
-      }
-
-      // Load current session if exists
-      const currentSessionId = localStorage.getItem('current_chat_session');
-      if (currentSessionId) {
-        const sessionMessages = localStorage.getItem(`chat_session_${currentSessionId}`);
-        if (sessionMessages) {
-          setMessages(JSON.parse(sessionMessages));
-          setCurrentSession(currentSessionId);
-        }
-      } else {
-        // Start new session with initial message
-        startNewSession();
-      }
-    } catch (error) {
-      console.error('Error loading chat history:', error);
-      setError('Failed to load chat history');
-    }
-  };
-
-  const startNewSession = () => {
+  const startNewSession = useCallback(() => {
     const sessionId = Date.now().toString();
     const initialSystemMessage: Message = {
       id: '1',
@@ -86,15 +51,58 @@ const ChatContainer = ({ initialMessage = "" }: ChatContainerProps) => {
       timestamp: new Date()
     };
 
-    setSessions(prev => [newSession, ...prev]);
+    setSessions(prev => {
+      const newSessions = [newSession, ...prev];
+      localStorage.setItem('chat_sessions', JSON.stringify(newSessions));
+      return newSessions;
+    });
+    
     localStorage.setItem('current_chat_session', sessionId);
     localStorage.setItem(`chat_session_${sessionId}`, JSON.stringify([initialSystemMessage]));
-    updateSessions([newSession, ...sessions]);
-  };
+  }, [initialMessage]);
 
-  const updateSessions = (updatedSessions: ChatSession[]) => {
-    setSessions(updatedSessions);
-    localStorage.setItem('chat_sessions', JSON.stringify(updatedSessions));
+  const loadChatHistory = useCallback(() => {
+    try {
+      // Load sessions
+      const savedSessions = localStorage.getItem('chat_sessions');
+      if (savedSessions) {
+        const parsedSessions = JSON.parse(savedSessions);
+        setSessions(parsedSessions);
+      }
+
+      // Load current session if exists
+      const currentSessionId = localStorage.getItem('current_chat_session');
+      if (currentSessionId) {
+        const sessionMessages = localStorage.getItem(`chat_session_${currentSessionId}`);
+        if (sessionMessages) {
+          setMessages(JSON.parse(sessionMessages));
+          setCurrentSession(currentSessionId);
+        } else {
+          // If session exists but no messages, start new session
+          startNewSession();
+        }
+      } else {
+        // Start new session with initial message
+        startNewSession();
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      setError('Failed to load chat history');
+    }
+  }, [startNewSession]);
+
+  // Load chat history on mount only
+  useEffect(() => {
+    loadChatHistory();
+  }, [loadChatHistory]);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const saveMessages = (sessionId: string, messageList: Message[]) => {

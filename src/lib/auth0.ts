@@ -1,6 +1,8 @@
 // This file provides authentication functionality
 // In a real app, this would connect to Auth0 or another auth provider
 
+import { ComponentType } from 'react';
+
 // Define user type
 export interface User {
   id: string;
@@ -8,7 +10,7 @@ export interface User {
   email: string;
   createdAt: string;
   lastLogin: string;
-  passwordHash: string; // In a real app, this would be stored only in the backend
+  passwordHash?: string; // Make passwordHash optional
 }
 
 // Mock database for demo purposes
@@ -112,8 +114,8 @@ export const loginUser = async (email: string, password: string): Promise<User> 
     saveUsers(users);
 
     // Store current user (without password hash)
-    const userWithoutPassword = { ...updatedUser };
-    delete userWithoutPassword.passwordHash;
+    const userWithoutPassword = { ...updatedUser } as Omit<User, 'passwordHash'>;
+    delete (userWithoutPassword as any).passwordHash;
     
     // Save to current user storage
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPassword));
@@ -181,8 +183,8 @@ export const signupUser = async (name: string, email: string, password: string):
   saveUsers(users);
   
   // Return user without password hash
-  const userWithoutPassword = { ...newUser };
-  delete userWithoutPassword.passwordHash;
+  const userWithoutPassword = { ...newUser } as Omit<User, 'passwordHash'>;
+  delete (userWithoutPassword as any).passwordHash;
   return userWithoutPassword;
 };
 
@@ -214,6 +216,6 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 };
 
 // Protect pages that require authentication
-export const withPageAuthRequired = (Component: any) => {
+export const withPageAuthRequired = <P extends {}>(Component: ComponentType<P>): ComponentType<P> => {
   return Component;
 }; 

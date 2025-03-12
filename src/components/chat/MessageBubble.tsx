@@ -28,7 +28,7 @@ const MessageBubble = ({ message, onRetry }: MessageBubbleProps) => {
     const lines = content.split('\n');
     let inList = false;
     
-    return lines.map((line, index) => {
+    return lines.map((line) => {
       const bulletPoint = line.match(/^[-•*]\s/);
       const numberPoint = line.match(/^\d+\.\s/);
       

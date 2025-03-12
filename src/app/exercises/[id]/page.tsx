@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -85,7 +85,7 @@ export default function ExercisePage() {
       if (parsedContent.tips && Array.isArray(parsedContent.tips)) {
         tips = parsedContent.tips;
       }
-    } catch (e) {
+    } catch (_) {
       // If not valid JSON, try to extract steps from the content string
       if (exercise.content) {
         // Split by numbered items or bullet points
@@ -175,7 +175,7 @@ export default function ExercisePage() {
         "Consistency is key - try to practice at the same time each day",
         "Start with shorter sessions and gradually increase duration",
         "Be patient with yourself - mindfulness is a skill that develops with practice",
-        "There's no 'perfect way' to practice - find what works best for you",
+        "There&apos;s no &apos;perfect way&apos; to practice - find what works best for you",
         "If you miss a day, simply begin again without judgment"
       ];
     }
@@ -209,7 +209,7 @@ export default function ExercisePage() {
         const savedExercises = localStorage.getItem('mindfulness_exercises');
         if (savedExercises) {
           const exercises = JSON.parse(savedExercises);
-          let foundExercise = exercises.find((ex: Exercise) => ex.id === id);
+          const foundExercise = exercises.find((ex: Exercise) => ex.id === id);
           
           if (foundExercise) {
             // Process and enhance the exercise content
@@ -261,7 +261,7 @@ export default function ExercisePage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleComplete = () => {
+  const handleComplete = useCallback(() => {
     setIsActive(false);
     setIsPaused(false);
     setCompleted(true);
@@ -282,7 +282,7 @@ export default function ExercisePage() {
       completedExercises.push(id);
       localStorage.setItem('completed_exercises', JSON.stringify(completedExercises));
     }
-  };
+  }, [id]);
 
   // Timer functionality
   useEffect(() => {

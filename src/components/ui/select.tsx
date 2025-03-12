@@ -6,6 +6,13 @@ interface SelectProps {
   children: React.ReactNode;
 }
 
+interface SelectChildProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  isOpen: boolean;
+  toggleOpen: () => void;
+}
+
 export function Select({ value, onValueChange, children }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   
@@ -15,7 +22,7 @@ export function Select({ value, onValueChange, children }: SelectProps) {
     <div className="relative">
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child as React.ReactElement<any>, {
+          return React.cloneElement(child as React.ReactElement<SelectChildProps>, {
             value,
             onValueChange,
             isOpen,
