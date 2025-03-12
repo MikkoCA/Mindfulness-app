@@ -15,6 +15,7 @@ interface Exercise {
   category: string;
   difficulty: string;
   content?: string;
+  rawContent?: string;
   createdAt: number;
 }
 
@@ -31,6 +32,7 @@ export default function ExercisesPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [detailedError, setDetailedError] = useState<string | null>(null);
   const [exerciseType, setExerciseType] = useState<string>(EXERCISE_TYPES[0].value);
   const [duration, setDuration] = useState<number>(5);
 
@@ -51,40 +53,90 @@ export default function ExercisesPage() {
     try {
       setLoading(true);
       setError(null);
+      setDetailedError(null);
       
       // Call the API to generate the exercise
-      const exerciseContent = await generateMindfulnessExercise(exerciseType, duration);
+      const exerciseContent = await generateMindfulnessExercise(exerciseType, duration)
+        .catch(err => {
+          console.error('Exercise generation error:', err);
+          setDetailedError(JSON.stringify({
+            message: err.message,
+            stack: err.stack
+          }, null, 2));
+          throw new Error(`Failed to generate exercise: ${err.message}`);
+        });
       
       try {
-        // Clean the response of any markdown formatting
+        // Show raw content for debugging
+        console.log('Raw exercise content:', exerciseContent);
+        
+        // Clean the response of any markdown formatting - fallback cleaning if library cleaning fails
         let cleanedContent = exerciseContent;
         
-        // Remove markdown code block syntax
-        if (cleanedContent.includes('```')) {
-          cleanedContent = cleanedContent
-            .replace(/```json\s*/g, '')
-            .replace(/```\s*$/g, '')
-            .replace(/^```\s*/g, '')
-            .replace(/\s*```$/g, '')
-            .trim();
+        try {
+          // First try to parse directly - maybe it's already valid JSON
+          JSON.parse(cleanedContent);
+          console.log('Content is valid JSON without cleaning');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch {
+          console.log('Initial parse failed, applying cleaning');
+          
+          // Remove markdown code block syntax
+          cleanedContent = cleanedContent.replace(/```(?:json|javascript|js|plaintext)?\s*([\s\S]*?)\s*```/g, '$1');
+          
+          // Remove any backticks
+          cleanedContent = cleanedContent.replace(/`/g, '');
+          
+          // Extract JSON object if embedded in text
+          const firstBrace = cleanedContent.indexOf('{');
+          const lastBrace = cleanedContent.lastIndexOf('}');
+          
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleanedContent = cleanedContent.substring(firstBrace, lastBrace + 1);
+          }
+          
+          // Trim any whitespace
+          cleanedContent = cleanedContent.trim();
+          
+          console.log('Cleaned content:', cleanedContent);
         }
         
-        console.log('Original content:', exerciseContent);
-        console.log('Cleaned content:', cleanedContent);
-        
         // Try to parse the JSON response
-        const parsedExercise = JSON.parse(cleanedContent);
+        let parsedExercise;
+        try {
+          parsedExercise = JSON.parse(cleanedContent);
+        } catch (jsonError: unknown) {
+          console.error('JSON parse error:', jsonError);
+          setDetailedError(`Raw response: ${exerciseContent}\n\nCleaned: ${cleanedContent}\n\nError: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+          throw new Error(`Could not parse exercise as JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+        }
         
         // Validate the required fields
         if (!parsedExercise.title || !parsedExercise.description || !parsedExercise.difficulty) {
-          throw new Error('Generated exercise is missing required fields');
+          const missingFields = [];
+          if (!parsedExercise.title) missingFields.push('title');
+          if (!parsedExercise.description) missingFields.push('description');
+          if (!parsedExercise.difficulty) missingFields.push('difficulty');
+          
+          setDetailedError(`Parsed JSON is missing required fields: ${missingFields.join(', ')}\n\nParsed content: ${JSON.stringify(parsedExercise, null, 2)}`);
+          throw new Error(`Generated exercise is missing required fields: ${missingFields.join(', ')}`);
         }
         
         // Add the metadata we need
         const newExercise: Exercise = {
           ...parsedExercise,
           id: Date.now().toString(),
-          content: parsedExercise.steps || parsedExercise.instructions || '',
+          rawContent: cleanedContent,
+          content: JSON.stringify({
+            steps: parsedExercise.steps || 
+                  (parsedExercise.instructions ? 
+                    (Array.isArray(parsedExercise.instructions) ? 
+                      parsedExercise.instructions : 
+                      parsedExercise.instructions.split('\n').filter((s: string) => s.trim() !== '')
+                    ) : 
+                    []
+                  )
+          }),
           createdAt: Date.now()
         };
         
@@ -95,11 +147,11 @@ export default function ExercisesPage() {
         // Save to localStorage
         localStorage.setItem('mindfulness_exercises', JSON.stringify(updatedExercises));
       } catch (error) {
-        console.error('Error parsing exercise:', error);
-        setError(error instanceof Error ? error.message : 'Failed to parse exercise response');
+        console.error('Error processing exercise:', error);
+        setError(error instanceof Error ? error.message : 'Failed to process exercise response');
       }
     } catch (error) {
-      console.error('Error generating exercise:', error);
+      console.error('Error in exercise generation flow:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate exercise');
     } finally {
       setLoading(false);
@@ -118,7 +170,15 @@ export default function ExercisesPage() {
         <CardContent>
           {error && (
             <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-md">
-              {error}
+              <p className="font-medium">Error: {error}</p>
+              {detailedError && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-sm">Show technical details</summary>
+                  <pre className="mt-2 p-2 bg-gray-100 rounded-md text-xs overflow-auto max-h-60">
+                    {detailedError}
+                  </pre>
+                </details>
+              )}
             </div>
           )}
           <div className="space-y-4">

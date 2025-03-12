@@ -13,6 +13,7 @@ interface Exercise {
   category: string;
   difficulty: string;
   content?: string;
+  rawContent?: string;
   steps?: string[];
   benefits?: string[];
   preparation?: string;
@@ -58,110 +59,84 @@ export default function ExercisePage() {
   const tickSound = useRef<HTMLAudioElement | null>(null);
 
   // Process and enhance exercise content
-  const processExerciseContent = (exercise: Exercise) => {
+  const processExerciseContent = useCallback((exercise: Exercise) => {
     let steps: string[] = [];
     let benefits: string[] = [];
     let preparation: string = '';
     let tips: string[] = [];
 
     try {
-      // Try to parse as JSON if possible
-      const parsedContent = JSON.parse(exercise.content || '{}');
+      console.log('Processing exercise:', exercise);
       
-      if (parsedContent.steps && Array.isArray(parsedContent.steps)) {
-        steps = parsedContent.steps;
-      } else if (parsedContent.instructions) {
-        steps = parsedContent.instructions.split('\n').filter((s: string) => s.trim() !== '');
-      }
-      
-      if (parsedContent.benefits && Array.isArray(parsedContent.benefits)) {
-        benefits = parsedContent.benefits;
-      }
-      
-      if (parsedContent.preparation) {
-        preparation = parsedContent.preparation;
-      }
-      
-      if (parsedContent.tips && Array.isArray(parsedContent.tips)) {
-        tips = parsedContent.tips;
-      }
-    } catch {
-      // If not valid JSON, try to extract steps from the content string
-      if (exercise.content) {
-        // Split by numbered items or bullet points
-        const lines = exercise.content.split('\n');
+      // First check if we already have parsed steps
+      if (exercise.steps && Array.isArray(exercise.steps) && exercise.steps.length > 0) {
+        console.log('Using existing steps from exercise');
+        steps = exercise.steps;
+      } 
+      // Then try to parse from content (newer format - already JSON stringified)
+      else if (exercise.content) {
+        console.log('Trying to parse content field');
         
-        // Extract steps - look for numbered lines or bullet points
-        steps = lines.filter(line => 
-          /^\d+[\.\)]/.test(line.trim()) || // Numbered items
-          /^[\-\•\*]/.test(line.trim())     // Bullet points
-        ).map(line => line.replace(/^\d+[\.\)]|\-|\•|\*/, '').trim());
+        try {
+          const parsedContent = JSON.parse(exercise.content);
+          
+          if (parsedContent.steps && Array.isArray(parsedContent.steps)) {
+            console.log('Found steps in parsed content');
+            steps = parsedContent.steps;
+          }
+          
+          if (parsedContent.benefits && Array.isArray(parsedContent.benefits)) {
+            benefits = parsedContent.benefits;
+          }
+          
+          if (parsedContent.preparation) {
+            preparation = parsedContent.preparation;
+          }
+          
+          if (parsedContent.tips && Array.isArray(parsedContent.tips)) {
+            tips = parsedContent.tips;
+          }
+        } catch (parseError) {
+          console.error('Error parsing content as JSON:', parseError);
+          
+          // Treat as plain text if it's not JSON
+          if (typeof exercise.content === 'string') {
+            steps = exercise.content.split('\n').filter(line => line.trim() !== '');
+          }
+        }
+      } 
+      // Finally try the rawContent (stored original JSON)
+      else if (exercise.rawContent) {
+        console.log('Trying to parse rawContent field');
         
-        // If no structured steps found, just split by paragraphs
-        if (steps.length === 0) {
-          steps = lines.filter(line => line.trim() !== '');
+        try {
+          const parsedRaw = JSON.parse(exercise.rawContent);
+          
+          if (parsedRaw.steps && Array.isArray(parsedRaw.steps)) {
+            steps = parsedRaw.steps;
+          } else if (parsedRaw.instructions) {
+            steps = Array.isArray(parsedRaw.instructions) 
+              ? parsedRaw.instructions 
+              : parsedRaw.instructions.split('\n').filter((s: string) => s.trim() !== '');
+          }
+        } catch (error) {
+          console.error('Error parsing rawContent:', error);
+          steps = (exercise.rawContent as string).split('\n').filter(line => line.trim() !== '');
         }
       }
-    }
-
-    // Create default steps if none were extracted
-    if (steps.length === 0) {
-      if (exercise.category === 'breathing') {
-        steps = [
-          "Find a comfortable seated position with your back straight.",
-          "Close your eyes and take a deep breath in through your nose for 4 counts.",
-          "Hold your breath for 4 counts.",
-          "Exhale slowly through your mouth for 6 counts.",
-          "Rest for 2 counts before beginning the next cycle.",
-          "Repeat this breathing pattern for the duration of the exercise."
-        ];
-      } else if (exercise.category === 'meditation') {
-        steps = [
-          "Find a quiet space where you won't be disturbed.",
-          "Sit comfortably with your back straight, either on a chair or cushion.",
-          "Close your eyes and bring your attention to your breath.",
-          "Notice the sensation of the breath entering and leaving your body.",
-          "When your mind wanders, gently bring your attention back to your breath.",
-          "Continue this practice, maintaining awareness of the present moment."
-        ];
-      } else {
-        steps = [
-          "Find a comfortable position to begin the exercise.",
-          "Follow along with the timer, moving through each phase mindfully.",
-          "Focus on your breath and bodily sensations throughout the practice.",
-          "If your mind wanders, gently bring your attention back to the exercise.",
-          "Complete the full duration for maximum benefit."
-        ];
+      // If we still have no steps, use default ones based on category
+      if (steps.length === 0) {
+        console.log('No steps found, using defaults for category:', exercise.category);
+        steps = getDefaultSteps(exercise.category);
       }
+    } catch (error) {
+      console.error('Error processing exercise:', error);
+      steps = getDefaultSteps(exercise.category);
     }
 
     // Generate benefits if none provided
     if (benefits.length === 0) {
-      if (exercise.category === 'breathing') {
-        benefits = [
-          "Reduces stress and anxiety",
-          "Improves focus and concentration",
-          "Activates the parasympathetic nervous system",
-          "Helps regulate emotions",
-          "Improves oxygen flow throughout the body"
-        ];
-      } else if (exercise.category === 'meditation') {
-        benefits = [
-          "Reduces stress and promotes emotional health",
-          "Enhances self-awareness and mindfulness",
-          "Lengthens attention span",
-          "May reduce age-related memory loss",
-          "Can generate kindness and compassion"
-        ];
-      } else {
-        benefits = [
-          "Promotes mindfulness and present-moment awareness",
-          "Reduces stress and anxiety",
-          "Improves mental clarity and focus",
-          "Enhances overall well-being",
-          "Helps build a consistent mindfulness practice"
-        ];
-      }
+      benefits = getDefaultBenefits(exercise.category);
     }
 
     // Generate preparation instructions if none provided
@@ -171,13 +146,7 @@ export default function ExercisePage() {
 
     // Generate tips if none provided
     if (tips.length === 0) {
-      tips = [
-        "Consistency is key - try to practice at the same time each day",
-        "Start with shorter sessions and gradually increase duration",
-        "Be patient with yourself - mindfulness is a skill that develops with practice",
-        "There&apos;s no &apos;perfect way&apos; to practice - find what works best for you",
-        "If you miss a day, simply begin again without judgment"
-      ];
+      tips = getDefaultTips();
     }
 
     // Calculate step timings
@@ -200,38 +169,142 @@ export default function ExercisePage() {
       tips,
       stepTimings: timings
     };
+  }, []);
+  
+  // Helper function to get default steps based on category
+  const getDefaultSteps = (category: string): string[] => {
+    if (category === 'breathing') {
+      return [
+        "Find a comfortable seated position with your back straight.",
+        "Close your eyes and take a deep breath in through your nose for 4 counts.",
+        "Hold your breath for 4 counts.",
+        "Exhale slowly through your mouth for 6 counts.",
+        "Rest for 2 counts before beginning the next cycle.",
+        "Repeat this breathing pattern for the duration of the exercise."
+      ];
+    } else if (category === 'meditation') {
+      return [
+        "Find a quiet space where you won't be disturbed.",
+        "Sit comfortably with your back straight, either on a chair or cushion.",
+        "Close your eyes and bring your attention to your breath.",
+        "Notice the sensation of the breath entering and leaving your body.",
+        "When your mind wanders, gently bring your attention back to your breath.",
+        "Continue this practice, maintaining awareness of the present moment."
+      ];
+    } else {
+      return [
+        "Find a comfortable position to begin the exercise.",
+        "Follow along with the timer, moving through each phase mindfully.",
+        "Focus on your breath and bodily sensations throughout the practice.",
+        "If your mind wanders, gently bring your attention back to the exercise.",
+        "Complete the full duration for maximum benefit."
+      ];
+    }
+  };
+  
+  // Helper function to get default benefits
+  const getDefaultBenefits = (category: string): string[] => {
+    if (category === 'breathing') {
+      return [
+        "Reduces stress and anxiety",
+        "Improves focus and concentration",
+        "Activates the parasympathetic nervous system",
+        "Helps regulate emotions",
+        "Improves oxygen flow throughout the body"
+      ];
+    } else if (category === 'meditation') {
+      return [
+        "Reduces stress and promotes emotional health",
+        "Enhances self-awareness and mindfulness",
+        "Lengthens attention span",
+        "May reduce age-related memory loss",
+        "Can generate kindness and compassion"
+      ];
+    } else {
+      return [
+        "Promotes mindfulness and present-moment awareness",
+        "Reduces stress and anxiety",
+        "Improves mental clarity and focus",
+        "Enhances overall well-being",
+        "Helps build a consistent mindfulness practice"
+      ];
+    }
+  };
+  
+  // Helper function to get default tips
+  const getDefaultTips = (): string[] => {
+    return [
+      "Consistency is key - try to practice at the same time each day",
+      "Start with shorter sessions and gradually increase duration",
+      "Be patient with yourself - mindfulness is a skill that develops with practice",
+      "There's no 'perfect way' to practice - find what works best for you",
+      "If you miss a day, simply begin again without judgment"
+    ];
   };
 
   // Load exercise data
   useEffect(() => {
     async function fetchExercise() {
       try {
-        const savedExercises = localStorage.getItem('mindfulness_exercises');
-        if (savedExercises) {
-          const exercises = JSON.parse(savedExercises);
-          const foundExercise = exercises.find((ex: Exercise) => ex.id === id);
-          
-          if (foundExercise) {
-            // Process and enhance the exercise content
-            const enhancedExercise = processExerciseContent(foundExercise);
-            setExercise(enhancedExercise);
-            setProcessedSteps(enhancedExercise.steps || []);
-            setStepTimings(enhancedExercise.stepTimings || []);
-            
-            // Set initial timer value based on exercise duration
-            const totalSeconds = enhancedExercise.duration * 60;
-            setTime(totalSeconds);
-            setTotalTime(totalSeconds);
-            setLoading(false);
-            return;
-          }
+        setLoading(true);
+        setError(null);
+        
+        console.log('Attempting to load exercise with ID:', id);
+        
+        if (!id) {
+          setError('Invalid exercise ID');
+          setLoading(false);
+          return;
         }
         
-        setError('Exercise not found. It may have been removed or expired.');
-        setLoading(false);
-      } catch {
-        console.error('Error fetching exercise');
+        const savedExercises = localStorage.getItem('mindfulness_exercises');
+        if (!savedExercises) {
+          console.error('No exercises found in localStorage');
+          setError('No exercises found. Please create some exercises first.');
+          setLoading(false);
+          return;
+        }
+        
+        let exercises;
+        try {
+          exercises = JSON.parse(savedExercises);
+        } catch (parseError) {
+          console.error('Error parsing saved exercises:', parseError);
+          setError('Error loading exercises. The data might be corrupted.');
+          setLoading(false);
+          return;
+        }
+        
+        const foundExercise = exercises.find((ex: Exercise) => ex.id === id);
+        
+        if (!foundExercise) {
+          console.error('Exercise not found with ID:', id);
+          setError('Exercise not found. It may have been removed or expired.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Found exercise:', foundExercise);
+        
+        // Process and enhance the exercise content
+        try {
+          const enhancedExercise = processExerciseContent(foundExercise);
+          setExercise(enhancedExercise);
+          setProcessedSteps(enhancedExercise.steps || []);
+          setStepTimings(enhancedExercise.stepTimings || []);
+          
+          // Set initial timer value based on exercise duration
+          const totalSeconds = enhancedExercise.duration * 60;
+          setTime(totalSeconds);
+          setTotalTime(totalSeconds);
+        } catch (processError) {
+          console.error('Error processing exercise content:', processError);
+          setError('Error preparing exercise content. Please try a different exercise.');
+        }
+      } catch (error) {
+        console.error('Error fetching exercise:', error);
         setError('Failed to load exercise. Please try again later.');
+      } finally {
         setLoading(false);
       }
     }
@@ -253,7 +326,8 @@ export default function ExercisePage() {
         clearInterval(breatheIntervalRef.current);
       }
     };
-  }, [id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, processExerciseContent]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -614,7 +688,13 @@ export default function ExercisePage() {
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-3">Current Focus</h3>
               <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 text-gray-800 mb-4">
-                {processedSteps[currentStep] || "Follow along with the timer"}
+                {processedSteps[currentStep] ? 
+                  (typeof processedSteps[currentStep] === 'string' ? 
+                    processedSteps[currentStep] : 
+                    (processedSteps[currentStep] as any).instruction || "Follow along with the timer"
+                  ) : 
+                  "Follow along with the timer"
+                }
               </div>
             </div>
             
@@ -622,31 +702,41 @@ export default function ExercisePage() {
             <div className="mb-6">
               <h3 className="text-lg font-semibold mb-3">Step-by-Step Instructions</h3>
               <ol className="space-y-4">
-                {processedSteps.map((step, index) => (
-                  <li key={index} className={`pl-6 ${currentStep === index ? 'bg-yellow-50 p-3 rounded-md border-l-4 border-yellow-500' : ''}`}>
-                    <div className="flex items-start">
-                      <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full mr-3 mt-0.5 ${
-                        currentStep > index ? 'bg-green-500 text-white' :
-                        currentStep === index ? 'bg-yellow-500 text-white animate-pulse' :
-                        'bg-gray-200 text-gray-700'
-                      }`}>
-                        {currentStep > index ? (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                          </svg>
-                        ) : (
-                          index + 1
-                        )}
-                      </span>
-                      <span className={`text-gray-700 ${currentStep === index ? 'font-medium' : ''}`}>{step}</span>
-                    </div>
-                    {currentStep === index && index < stepTimings.length && (
-                      <div className="text-sm text-gray-500 mt-1 ml-9">
-                        Focus on this step for approximately {Math.floor(stepTimings[index] / 60)} minute{stepTimings[index] / 60 !== 1 ? 's' : ''}
+                {processedSteps.map((step, index) => {
+                  // Handle both string and object steps
+                  const stepText = typeof step === 'string' ? 
+                    step : 
+                    (step as any).instruction || "Follow this step";
+                  
+                  return (
+                    <li key={index} className={`pl-6 ${currentStep === index ? 'bg-yellow-50 p-3 rounded-md border-l-4 border-yellow-500' : ''}`}>
+                      <div className="flex items-start">
+                        <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full mr-3 mt-0.5 ${
+                          currentStep > index ? 'bg-green-500 text-white' :
+                          currentStep === index ? 'bg-yellow-500 text-white animate-pulse' :
+                          'bg-gray-200 text-gray-700'
+                        }`}>
+                          {currentStep > index ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          ) : (
+                            index + 1
+                          )}
+                        </span>
+                        <span className={`text-gray-700 ${currentStep === index ? 'font-medium' : ''}`}>{stepText}</span>
                       </div>
-                    )}
-                  </li>
-                ))}
+                      {currentStep === index && index < stepTimings.length && (
+                        <div className="text-sm text-gray-500 mt-1 ml-9">
+                          {typeof step === 'object' && (step as any).duration ? 
+                            `Focus on this step for ${(step as any).duration} seconds` :
+                            `Focus on this step for approximately ${Math.floor(stepTimings[index] / 60)} minute${stepTimings[index] / 60 !== 1 ? 's' : ''}`
+                          }
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             </div>
             

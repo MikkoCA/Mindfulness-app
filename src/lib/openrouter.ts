@@ -60,9 +60,10 @@ export const generateMindfulnessExercise = async (
   try {
     const systemPrompt = `You are a mindfulness coach specializing in ${type} exercises. 
     Create a ${duration}-minute ${type} exercise that is calming and centering. 
-    IMPORTANT: Your response MUST be a raw JSON object ONLY. 
-    Do NOT include any markdown formatting, backticks, or code block syntax like \`\`\`json.
-    Just return the plain JSON object with the following structure:
+    EXTREMELY IMPORTANT: Return ONLY a raw JSON object WITHOUT any explanations, markdown, or formatting.
+    DO NOT wrap the JSON in code blocks, backticks, or any other syntax.
+    The response must be valid JSON that can be directly parsed.
+    Format:
     {
       "title": "Exercise Name",
       "description": "Brief description of the exercise",
@@ -73,7 +74,7 @@ export const generateMindfulnessExercise = async (
     
     const messages = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Create a ${duration}-minute ${type} exercise` }
+      { role: 'user', content: `Create a ${duration}-minute ${type} exercise as a valid JSON object only` }
     ];
     
     const response = await fetch('/api/chat', {
@@ -89,19 +90,19 @@ export const generateMindfulnessExercise = async (
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('OpenRouter API error response:', errorData);
       throw new Error(`API error: ${response.status} - ${errorData.error || 'Unknown error'}`);
     }
     
     const data = await response.json();
-    let content = data.choices[0].message.content;
+    // eslint-disable-next-line prefer-const
+    const content = data.choices[0].message.content;
     
     // Clean the response of any markdown formatting
     if (content.includes('```')) {
-      content = content
-        .replace(/```json\s*/g, '')
-        .replace(/```\s*$/g, '')
-        .replace(/^```\s*/g, '')
-        .replace(/\s*```$/g, '')
+      return content
+        .replace(/```(?:json|javascript|js|plaintext)?\s*([\s\S]*?)\s*```/g, '$1')
+        .replace(/`/g, '')
         .trim();
     }
     
