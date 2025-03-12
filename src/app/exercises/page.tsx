@@ -56,8 +56,24 @@ export default function ExercisesPage() {
       const exerciseContent = await generateMindfulnessExercise(exerciseType, duration);
       
       try {
+        // Clean the response of any markdown formatting
+        let cleanedContent = exerciseContent;
+        
+        // Remove markdown code block syntax
+        if (cleanedContent.includes('```')) {
+          cleanedContent = cleanedContent
+            .replace(/```json\s*/g, '')
+            .replace(/```\s*$/g, '')
+            .replace(/^```\s*/g, '')
+            .replace(/\s*```$/g, '')
+            .trim();
+        }
+        
+        console.log('Original content:', exerciseContent);
+        console.log('Cleaned content:', cleanedContent);
+        
         // Try to parse the JSON response
-        const parsedExercise = JSON.parse(exerciseContent);
+        const parsedExercise = JSON.parse(cleanedContent);
         
         // Validate the required fields
         if (!parsedExercise.title || !parsedExercise.description || !parsedExercise.difficulty) {

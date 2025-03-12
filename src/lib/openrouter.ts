@@ -60,7 +60,9 @@ export const generateMindfulnessExercise = async (
   try {
     const systemPrompt = `You are a mindfulness coach specializing in ${type} exercises. 
     Create a ${duration}-minute ${type} exercise that is calming and centering. 
-    Format the response as a raw JSON object with the following structure (do not include any markdown formatting or backticks):
+    IMPORTANT: Your response MUST be a raw JSON object ONLY. 
+    Do NOT include any markdown formatting, backticks, or code block syntax like \`\`\`json.
+    Just return the plain JSON object with the following structure:
     {
       "title": "Exercise Name",
       "description": "Brief description of the exercise",
@@ -91,7 +93,19 @@ export const generateMindfulnessExercise = async (
     }
     
     const data = await response.json();
-    return data.choices[0].message.content;
+    let content = data.choices[0].message.content;
+    
+    // Clean the response of any markdown formatting
+    if (content.includes('```')) {
+      content = content
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*$/g, '')
+        .replace(/^```\s*/g, '')
+        .replace(/\s*```$/g, '')
+        .trim();
+    }
+    
+    return content;
     
   } catch (error) {
     console.error('Error generating mindfulness exercise:', error);
