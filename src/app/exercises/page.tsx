@@ -30,6 +30,7 @@ const EXERCISE_TYPES = [
 export default function ExercisesPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [exerciseType, setExerciseType] = useState<string>(EXERCISE_TYPES[0].value);
   const [duration, setDuration] = useState<number>(5);
 
@@ -49,6 +50,7 @@ export default function ExercisesPage() {
   const generateExercise = async () => {
     try {
       setLoading(true);
+      setError(null);
       
       // Call the API to generate the exercise
       const exerciseContent = await generateMindfulnessExercise(exerciseType, duration);
@@ -56,6 +58,12 @@ export default function ExercisesPage() {
       try {
         // Try to parse the JSON response
         const parsedExercise = JSON.parse(exerciseContent);
+        
+        // Validate the required fields
+        if (!parsedExercise.title || !parsedExercise.description || !parsedExercise.difficulty) {
+          throw new Error('Generated exercise is missing required fields');
+        }
+        
         // Add the metadata we need
         const newExercise: Exercise = {
           ...parsedExercise,
@@ -72,11 +80,11 @@ export default function ExercisesPage() {
         localStorage.setItem('mindfulness_exercises', JSON.stringify(updatedExercises));
       } catch (error) {
         console.error('Error parsing exercise:', error);
-        alert('Failed to generate exercise. Please try again.');
+        setError(error instanceof Error ? error.message : 'Failed to parse exercise response');
       }
     } catch (error) {
       console.error('Error generating exercise:', error);
-      alert('Failed to generate exercise. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to generate exercise');
     } finally {
       setLoading(false);
     }
@@ -92,6 +100,11 @@ export default function ExercisesPage() {
           <CardDescription>Customize and create a new mindfulness exercise</CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Exercise Type</label>
