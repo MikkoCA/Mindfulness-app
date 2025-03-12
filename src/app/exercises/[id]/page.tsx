@@ -255,6 +255,35 @@ export default function ExercisePage() {
     };
   }, [id]);
 
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleComplete = () => {
+    setIsActive(false);
+    setIsPaused(false);
+    setCompleted(true);
+    
+    // Play completion sound
+    if (bellSound.current) {
+      bellSound.current.play().catch(e => console.error('Error playing sound:', e));
+      setTimeout(() => {
+        if (bellSound.current) {
+          bellSound.current.play().catch(e => console.error('Error playing sound:', e));
+        }
+      }, 1500);
+    }
+    
+    // Save completed exercise to localStorage
+    const completedExercises = JSON.parse(localStorage.getItem('completed_exercises') || '[]');
+    if (!completedExercises.includes(id)) {
+      completedExercises.push(id);
+      localStorage.setItem('completed_exercises', JSON.stringify(completedExercises));
+    }
+  };
+
   // Timer functionality
   useEffect(() => {
     if (isActive && !isPaused) {
@@ -311,7 +340,7 @@ export default function ExercisePage() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isActive, isPaused, stepTimings, currentStep, totalTime]);
+  }, [isActive, isPaused, stepTimings, currentStep, totalTime, handleComplete]);
 
   // Fix for the breathing cycle implementation
   useEffect(() => {
@@ -375,12 +404,6 @@ export default function ExercisePage() {
     }
   }, [isActive, isPaused, exercise?.category]);
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const handleStart = () => {
     setIsActive(true);
     setIsPaused(false);
@@ -406,29 +429,6 @@ export default function ExercisePage() {
     setCompleted(false);
     setBreathePhase('rest');
     setBreatheCount(0);
-  };
-
-  const handleComplete = () => {
-    setIsActive(false);
-    setIsPaused(false);
-    setCompleted(true);
-    
-    // Play completion sound
-    if (bellSound.current) {
-      bellSound.current.play().catch(e => console.error('Error playing sound:', e));
-      setTimeout(() => {
-        if (bellSound.current) {
-          bellSound.current.play().catch(e => console.error('Error playing sound:', e));
-        }
-      }, 1500);
-    }
-    
-    // Save completed exercise to localStorage
-    const completedExercises = JSON.parse(localStorage.getItem('completed_exercises') || '[]');
-    if (!completedExercises.includes(id)) {
-      completedExercises.push(id);
-      localStorage.setItem('completed_exercises', JSON.stringify(completedExercises));
-    }
   };
 
   if (loading) {

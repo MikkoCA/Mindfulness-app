@@ -5,13 +5,19 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signupUser, getCurrentUser } from '@/lib/auth0';
 
+// Add proper type for the error
+interface AuthError {
+  message: string;
+  code?: string;
+}
+
 const SignupForm = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<AuthError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
     email?: string;
@@ -47,7 +53,7 @@ const SignupForm = () => {
 
     // Reset errors
     setFieldErrors({});
-    setError('');
+    setError(null);
 
     // Name validation
     if (!name.trim()) {
@@ -119,9 +125,9 @@ const SignupForm = () => {
           email: 'This email is already registered. Please use a different email or log in.'
         });
       } else if (err.message.includes('network')) {
-        setError('Network error. Please check your connection and try again.');
+        setError({ message: 'Network error. Please check your connection and try again.' });
       } else {
-        setError(err.message || 'Failed to sign up. Please try again.');
+        setError({ message: err.message || 'Failed to sign up. Please try again.' });
       }
       console.error('Signup error:', err);
     } finally {
@@ -135,7 +141,7 @@ const SignupForm = () => {
       
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
-          {error}
+          {error.message}
         </div>
       )}
       

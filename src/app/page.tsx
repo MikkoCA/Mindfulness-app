@@ -14,6 +14,29 @@ export default function Home() {
   const [recommendedExercises, setRecommendedExercises] = useState<Exercise[]>([]);
   const [weeklyMoodAverage, setWeeklyMoodAverage] = useState<number | null>(null);
 
+  const generateRecommendations = (exercises: Exercise[]) => {
+    // Get user's mood trend
+    const moodTrend = weeklyMoodAverage || 3;
+    
+    // Filter and sort exercises based on mood and previous completion
+    const completedExercises = new Set(JSON.parse(localStorage.getItem('completed_exercises') || '[]'));
+    
+    const recommended = exercises
+      .filter(exercise => !completedExercises.has(exercise.id))
+      .sort((a, b) => {
+        if (moodTrend <= 2.5) {
+          return (a.duration - b.duration) || 
+                 (a.difficulty === 'beginner' ? -1 : 1);
+        } else if (moodTrend >= 4) {
+          return (b.duration - a.duration) || 
+                 (b.difficulty === 'advanced' ? -1 : 1);
+        }
+        return Math.random() - 0.5;
+      });
+
+    setRecommendedExercises(recommended.slice(0, 3));
+  };
+
   useEffect(() => {
     const fetchUser = async () => {
       const currentUser = await getCurrentUser();
@@ -39,7 +62,7 @@ export default function Home() {
 
     // Generate activity log
     generateActivityLog();
-  }, []);
+  }, []); // Removed generateRecommendations from dependencies
 
   const calculateWeeklyMoodAverage = (moods: MoodEntry[]) => {
     const now = new Date();
@@ -88,29 +111,6 @@ export default function Home() {
     // Sort by date (most recent first)
     activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setRecentActivities(activities.slice(0, 10));
-  };
-
-  const generateRecommendations = (exercises: Exercise[]) => {
-    // Get user's mood trend
-    const moodTrend = weeklyMoodAverage || 3;
-    
-    // Filter and sort exercises based on mood and previous completion
-    const completedExercises = new Set(JSON.parse(localStorage.getItem('completed_exercises') || '[]'));
-    
-    let recommended = exercises
-      .filter(exercise => !completedExercises.has(exercise.id))
-      .sort((a, b) => {
-        if (moodTrend <= 2.5) {
-          return (a.duration - b.duration) || 
-                 (a.difficulty === 'beginner' ? -1 : 1);
-        } else if (moodTrend >= 4) {
-          return (b.duration - a.duration) || 
-                 (b.difficulty === 'advanced' ? -1 : 1);
-        }
-        return Math.random() - 0.5;
-      });
-
-    setRecommendedExercises(recommended.slice(0, 3));
   };
 
   const formatDate = (dateString: string) => {

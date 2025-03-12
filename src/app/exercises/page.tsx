@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { generateMindfulnessExercise } from '@/lib/openrouter';
 import Link from 'next/link';
 
@@ -53,7 +53,7 @@ export default function ExercisesPage() {
       setLoading(true);
       
       // Call the API to generate the exercise
-      let exerciseContent = await generateMindfulnessExercise(exerciseType, duration);
+      const exerciseContent = await generateMindfulnessExercise(exerciseType, duration);
       
       try {
         // Try to parse the JSON response

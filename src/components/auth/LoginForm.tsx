@@ -5,11 +5,17 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginUser, getCurrentUser } from '@/lib/auth0';
 
+// Add proper type for the error
+interface AuthError {
+  message: string;
+  code?: string;
+}
+
 const LoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<AuthError | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{email?: string; password?: string}>({});
   const [successMessage, setSuccessMessage] = useState('');
   const router = useRouter();
@@ -40,7 +46,7 @@ const LoginForm = () => {
 
     // Reset errors
     setFieldErrors({});
-    setError('');
+    setError(null);
 
     // Email validation
     if (!email) {
@@ -72,7 +78,7 @@ const LoginForm = () => {
       return;
     }
     
-    setError('');
+    setError(null);
     setSuccessMessage('');
     setIsLoading(true);
 
@@ -85,13 +91,13 @@ const LoginForm = () => {
     } catch (err: any) {
       // Handle specific error messages from the auth service
       if (err.message === 'Invalid credentials') {
-        setError('Invalid email or password. Please try again.');
+        setError({ message: 'Invalid email or password. Please try again.' });
       } else if (err.message === 'User not found') {
-        setError('No account found with this email. Please sign up first.');
+        setError({ message: 'No account found with this email. Please sign up first.' });
       } else if (err.message.includes('network')) {
-        setError('Network error. Please check your connection and try again.');
+        setError({ message: 'Network error. Please check your connection and try again.' });
       } else {
-        setError('Failed to log in. Please try again later.');
+        setError({ message: 'Failed to log in. Please try again later.' });
       }
       console.error('Login error:', err);
     } finally {
@@ -105,7 +111,7 @@ const LoginForm = () => {
       
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
-          {error}
+          {error.message}
         </div>
       )}
       
@@ -179,7 +185,7 @@ const LoginForm = () => {
       </form>
       
       <p className="mt-8 text-center text-sm text-gray-600">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link href="/auth/signup" className="text-blue-600 hover:underline font-medium">
           Sign up
         </Link>
