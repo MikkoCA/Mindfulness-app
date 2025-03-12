@@ -85,7 +85,7 @@ export default function ExercisePage() {
       if (parsedContent.tips && Array.isArray(parsedContent.tips)) {
         tips = parsedContent.tips;
       }
-    } catch (_) {
+    } catch {
       // If not valid JSON, try to extract steps from the content string
       if (exercise.content) {
         // Split by numbered items or bullet points
@@ -229,8 +229,8 @@ export default function ExercisePage() {
         
         setError('Exercise not found. It may have been removed or expired.');
         setLoading(false);
-      } catch (err) {
-        console.error('Error fetching exercise:', err);
+      } catch {
+        console.error('Error fetching exercise');
         setError('Failed to load exercise. Please try again later.');
         setLoading(false);
       }
@@ -605,7 +605,7 @@ export default function ExercisePage() {
               {completed && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                   <h3 className="text-lg font-semibold text-green-800 mb-2">Great job!</h3>
-                  <p className="text-green-700">You've completed this exercise. How do you feel?</p>
+                  <p className="text-green-700">You&apos;ve completed this exercise. How do you feel?</p>
                 </div>
               )}
             </div>

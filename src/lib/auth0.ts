@@ -115,7 +115,7 @@ export const loginUser = async (email: string, password: string): Promise<User> 
 
     // Store current user (without password hash)
     const userWithoutPassword = { ...updatedUser } as Omit<User, 'passwordHash'>;
-    delete (userWithoutPassword as any).passwordHash;
+    delete (userWithoutPassword as { passwordHash?: string }).passwordHash;
     
     // Save to current user storage
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userWithoutPassword));
@@ -184,7 +184,7 @@ export const signupUser = async (name: string, email: string, password: string):
   
   // Return user without password hash
   const userWithoutPassword = { ...newUser } as Omit<User, 'passwordHash'>;
-  delete (userWithoutPassword as any).passwordHash;
+  delete (userWithoutPassword as { passwordHash?: string }).passwordHash;
   return userWithoutPassword;
 };
 
@@ -216,6 +216,6 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 };
 
 // Protect pages that require authentication
-export const withPageAuthRequired = <P extends {}>(Component: ComponentType<P>): ComponentType<P> => {
+export const withPageAuthRequired = <P extends object>(Component: ComponentType<P>): ComponentType<P> => {
   return Component;
 }; 

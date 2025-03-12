@@ -17,12 +17,24 @@ const MoodTracker = ({ initialEntries = [], onAddEntry }: MoodTrackerProps) => {
   const handleAddEntry = () => {
     if (!selectedMood) return;
 
+    // Get numeric value for the mood
+    const moodValues = {
+      'very_happy': 5,
+      'happy': 4,
+      'neutral': 3,
+      'sad': 2,
+      'very_sad': 1
+    };
+
+    const now = new Date();
     const newEntry: MoodEntry = {
       id: Date.now().toString(),
       userId: 'user123', // This would come from authentication in a real app
       mood: selectedMood,
+      moodValue: moodValues[selectedMood],
+      date: now.toISOString().split('T')[0], // Format: YYYY-MM-DD
       notes: notes.trim() || undefined,
-      timestamp: new Date(),
+      timestamp: now,
     };
 
     setEntries([newEntry, ...entries]);
