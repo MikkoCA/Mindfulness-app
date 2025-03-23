@@ -103,7 +103,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Support
 
 For support, please open an issue in the GitHub repository or contact the maintainers.
+

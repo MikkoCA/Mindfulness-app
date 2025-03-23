@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { generateMindfulnessExercise } from '@/lib/openrouter';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthGuard from '@/components/auth/AuthGuard';
+import { motion } from 'framer-motion';
 
 // Define the Exercise type
 interface Exercise {
@@ -29,8 +32,9 @@ const EXERCISE_TYPES = [
 ];
 
 export default function ExercisesPage() {
+  const { user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailedError, setDetailedError] = useState<string | null>(null);
   const [exerciseType, setExerciseType] = useState<string>(EXERCISE_TYPES[0].value);
@@ -50,8 +54,13 @@ export default function ExercisesPage() {
 
   // Function to generate a new exercise
   const generateExercise = async () => {
+    if (!user) {
+      setError('You need to be logged in to generate exercises');
+      return;
+    }
+
     try {
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
       setDetailedError(null);
       
@@ -70,36 +79,27 @@ export default function ExercisesPage() {
         // Show raw content for debugging
         console.log('Raw exercise content:', exerciseContent);
         
-        // Clean the response of any markdown formatting - fallback cleaning if library cleaning fails
+        // Clean the response of any markdown formatting
         let cleanedContent = exerciseContent;
         
-        try {
-          // First try to parse directly - maybe it's already valid JSON
-          JSON.parse(cleanedContent);
-          console.log('Content is valid JSON without cleaning');
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch {
-          console.log('Initial parse failed, applying cleaning');
-          
-          // Remove markdown code block syntax
-          cleanedContent = cleanedContent.replace(/```(?:json|javascript|js|plaintext)?\s*([\s\S]*?)\s*```/g, '$1');
-          
-          // Remove any backticks
-          cleanedContent = cleanedContent.replace(/`/g, '');
-          
-          // Extract JSON object if embedded in text
-          const firstBrace = cleanedContent.indexOf('{');
-          const lastBrace = cleanedContent.lastIndexOf('}');
-          
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            cleanedContent = cleanedContent.substring(firstBrace, lastBrace + 1);
-          }
-          
-          // Trim any whitespace
-          cleanedContent = cleanedContent.trim();
-          
-          console.log('Cleaned content:', cleanedContent);
+        // Remove markdown code block syntax
+        cleanedContent = cleanedContent.replace(/```(?:json|javascript|js|plaintext)?\s*([\s\S]*?)\s*```/g, '$1');
+        
+        // Remove any backticks
+        cleanedContent = cleanedContent.replace(/`/g, '');
+        
+        // Extract JSON object if embedded in text
+        const jsonRegex = /{[\s\S]*}/;
+        const jsonMatch = cleanedContent.match(jsonRegex);
+        
+        if (jsonMatch) {
+          cleanedContent = jsonMatch[0];
         }
+        
+        // Trim any whitespace
+        cleanedContent = cleanedContent.trim();
+        
+        console.log('Cleaned content:', cleanedContent);
         
         // Try to parse the JSON response
         let parsedExercise;
@@ -107,19 +107,64 @@ export default function ExercisesPage() {
           parsedExercise = JSON.parse(cleanedContent);
         } catch (jsonError: unknown) {
           console.error('JSON parse error:', jsonError);
-          setDetailedError(`Raw response: ${exerciseContent}\n\nCleaned: ${cleanedContent}\n\nError: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
-          throw new Error(`Could not parse exercise as JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+          
+          // If we can't parse it as JSON, try to create a structured exercise from the text
+          if (typeof cleanedContent === 'string' && cleanedContent.includes('minute') && cleanedContent.length > 100) {
+            // Extract a title from the first line or use a default
+            const lines = cleanedContent.split('\n').filter(line => line.trim().length > 0);
+            const title = lines[0]?.trim() || `${duration}-Minute ${exerciseType.charAt(0).toUpperCase() + exerciseType.slice(1)} Exercise`;
+            
+            // Use the second line as description or generate one
+            const description = lines[1]?.trim() || `A ${duration}-minute guided ${exerciseType} exercise to help you relax and center yourself.`;
+            
+            // Extract steps from the remaining content
+            const steps = lines.slice(2).map(line => line.trim()).filter(line => line.length > 0);
+            
+            parsedExercise = {
+              title,
+              description,
+              duration,
+              category: exerciseType,
+              difficulty: 'beginner',
+              steps: steps.length > 0 ? steps : [cleanedContent]
+            };
+          } else {
+            setDetailedError(`Raw response: ${exerciseContent}\n\nCleaned: ${cleanedContent}\n\nError: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+            throw new Error(`Could not parse exercise as JSON: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+          }
         }
         
-        // Validate the required fields
-        if (!parsedExercise.title || !parsedExercise.description || !parsedExercise.difficulty) {
-          const missingFields = [];
-          if (!parsedExercise.title) missingFields.push('title');
-          if (!parsedExercise.description) missingFields.push('description');
-          if (!parsedExercise.difficulty) missingFields.push('difficulty');
-          
-          setDetailedError(`Parsed JSON is missing required fields: ${missingFields.join(', ')}\n\nParsed content: ${JSON.stringify(parsedExercise, null, 2)}`);
-          throw new Error(`Generated exercise is missing required fields: ${missingFields.join(', ')}`);
+        // Validate and fill in missing fields
+        if (!parsedExercise.title) {
+          parsedExercise.title = `${duration}-Minute ${exerciseType.charAt(0).toUpperCase() + exerciseType.slice(1)} Exercise`;
+        }
+        
+        if (!parsedExercise.description) {
+          parsedExercise.description = `A ${duration}-minute guided ${exerciseType} exercise to help you relax and center yourself.`;
+        }
+        
+        if (!parsedExercise.difficulty) {
+          parsedExercise.difficulty = 'beginner';
+        }
+        
+        if (!parsedExercise.category) {
+          parsedExercise.category = exerciseType;
+        }
+        
+        if (!parsedExercise.duration) {
+          parsedExercise.duration = duration;
+        }
+        
+        // Ensure we have steps
+        if (!parsedExercise.steps && !parsedExercise.instructions) {
+          // If we have content but no steps, try to split it into steps
+          if (typeof cleanedContent === 'string' && cleanedContent.length > 0) {
+            parsedExercise.steps = cleanedContent.split('\n')
+              .filter(line => line.trim().length > 0)
+              .map(line => line.trim());
+          } else {
+            parsedExercise.steps = [`Follow along with this ${duration}-minute ${exerciseType} exercise.`];
+          }
         }
         
         // Add the metadata we need
@@ -154,130 +199,201 @@ export default function ExercisesPage() {
       console.error('Error in exercise generation flow:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate exercise');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">Mindfulness Exercises</h1>
-      
-      <Card className="mb-6 sm:mb-8">
-        <CardHeader>
-          <CardTitle>Generate a New Exercise</CardTitle>
-          <CardDescription>Customize and create a new mindfulness exercise</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="mb-4 p-3 sm:p-4 bg-red-50 text-red-700 rounded-md">
-              <p className="font-medium text-sm sm:text-base">Error: {error}</p>
-              {detailedError && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-xs sm:text-sm">Show technical details</summary>
-                  <pre className="mt-2 p-2 bg-gray-100 rounded-md text-xs overflow-auto max-h-40 sm:max-h-60">
-                    {detailedError}
-                  </pre>
-                </details>
-              )}
-            </div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Exercise Type</label>
-              <select 
-                value={exerciseType} 
-                onChange={(e) => setExerciseType(e.target.value)}
-                className="w-full py-2 px-3 border border-gray-300 rounded-md bg-white"
-              >
-                {EXERCISE_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Duration: {duration} minutes
-              </label>
-              <input
-                type="range"
-                min={3}
-                max={30}
-                step={1}
-                value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col sm:flex-row sm:justify-between gap-3">
-          <Button 
-            onClick={generateExercise}
-            disabled={loading}
-            className="w-full sm:w-auto flex items-center justify-center"
+    <AuthGuard>
+      <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4"
           >
-            {loading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Generating...
-              </>
-            ) : (
-              <>Generate Exercise</>
-            )}
-          </Button>
-          
-          <div className="text-sm text-gray-500 w-full sm:w-auto text-center sm:text-right">
-            Exercises are saved locally on your device
-          </div>
-        </CardFooter>
-      </Card>
-      
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">Your Exercises</h2>
-        
-        {exercises.length === 0 ? (
-          <div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-200">
-            <p className="text-gray-600">You haven't created any exercises yet.</p>
-            <p className="text-gray-500 text-sm mt-2">Generate one above to get started!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {exercises.map((exercise) => (
-              <Card key={exercise.id} className="overflow-hidden">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{exercise.title}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {exercise.duration} min · {exercise.difficulty} · {
-                          EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category
-                        }
-                      </CardDescription>
-                    </div>
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-teal-100 text-teal-800">
-                      {new Date(exercise.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
+            <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+              Mindfulness Exercises
+            </h1>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center text-teal-600 hover:text-teal-700 font-medium"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Dashboard
+            </Link>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="grid gap-8 grid-cols-1 lg:grid-cols-3"
+          >
+            {/* Exercise Generator Card */}
+            <div className="lg:col-span-1">
+              <Card className="bg-white/90 backdrop-blur-xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)]">
+                <CardHeader>
+                  <CardTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                    Create New Exercise
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Customize and generate a new mindfulness exercise
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="pb-2 text-sm">
-                  <p className="line-clamp-2">{exercise.description}</p>
+                <CardContent>
+                  {error && (
+                    <div className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl">
+                      <p className="font-medium text-sm">{error}</p>
+                      {detailedError && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-medium text-rose-600">Show technical details</summary>
+                          <pre className="mt-2 p-3 bg-rose-100/50 rounded-lg text-xs overflow-auto max-h-60">
+                            {detailedError}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Exercise Type</label>
+                      <select 
+                        value={exerciseType} 
+                        onChange={(e) => setExerciseType(e.target.value)}
+                        className="w-full py-2.5 px-3 rounded-xl border border-[rgb(203,251,241)] bg-white/90 shadow-lg shadow-teal-500/5 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all hover:shadow-xl hover:shadow-teal-500/10"
+                      >
+                        {EXERCISE_TYPES.map((type) => (
+                          <option key={type.value} value={type.value}>
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Duration: {duration} minutes
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="range"
+                          min="1"
+                          max="30"
+                          value={duration}
+                          onChange={(e) => setDuration(parseInt(e.target.value))}
+                          className="w-full h-2 bg-[rgb(203,251,241)] rounded-lg appearance-none cursor-pointer accent-teal-600"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>1 min</span>
+                          <span>15 min</span>
+                          <span>30 min</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
-                <CardFooter className="pt-2">
-                  <Link href={`/exercises/${exercise.id}`} className="w-full">
-                    <Button variant="outline" className="w-full">Start Exercise</Button>
-                  </Link>
+                <CardFooter>
+                  <Button
+                    onClick={generateExercise}
+                    disabled={isLoading}
+                    className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold py-2.5 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30"
+                  >
+                    {isLoading ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
+                        Generating...
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-lg">✨</span>
+                        <span>Generate Exercise</span>
+                      </div>
+                    )}
+                  </Button>
                 </CardFooter>
               </Card>
-            ))}
-          </div>
-        )}
+            </div>
+
+            {/* Exercise List */}
+            <div className="lg:col-span-2">
+              <div className="space-y-6">
+                {exercises.length > 0 ? (
+                  exercises.map((exercise) => (
+                    <motion.div
+                      key={exercise.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] overflow-hidden transform transition-all"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                              {exercise.title}
+                            </h3>
+                            <p className="text-gray-600 mb-4">
+                              {exercise.description}
+                            </p>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700">
+                                {exercise.duration} minutes
+                              </span>
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700">
+                                {EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category}
+                              </span>
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700 capitalize">
+                                {exercise.difficulty}
+                              </span>
+                            </div>
+                          </div>
+                          <Link
+                            href={`/exercises/${exercise.id}`}
+                            className="inline-flex items-center justify-center px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/20 hover:shadow-xl hover:shadow-teal-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            Start Exercise
+                          </Link>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Created {new Date(exercise.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center py-16 border-2 border-dashed border-[rgb(203,251,241)] rounded-2xl bg-white/50 backdrop-blur-sm"
+                  >
+                    <motion.div 
+                      className="text-6xl mb-4"
+                      animate={{ 
+                        y: [0, -10, 0],
+                        scale: [1, 1.1, 1]
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        repeatDelay: 1
+                      }}
+                    >
+                      🧘‍♂️
+                    </motion.div>
+                    <p className="text-gray-600 mb-6 text-lg">No exercises yet</p>
+                    <p className="text-gray-500 mb-8">Generate your first mindfulness exercise to get started</p>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 } 

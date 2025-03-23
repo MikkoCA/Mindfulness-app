@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getCurrentUser, logoutUser, User } from '@/lib/auth0';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
 const Header = () => {
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, loading: isLoading } = useAuth();
 
   const isActive = (path: string) => {
     return pathname === path 
@@ -20,11 +21,12 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
-      await logoutUser();
-      setUser(null);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.refresh();
       router.push('/');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Error signing out:', error);
     }
   };
 
@@ -32,191 +34,197 @@ const Header = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  // Check authentication status whenever the pathname changes
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setUser(null);
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user) return 'G';
+    
+    if (user.user_metadata?.full_name) {
+      const names = user.user_metadata.full_name.split(' ');
+      if (names.length >= 2) {
+        return `${names[0][0]}${names[1][0]}`.toUpperCase();
       }
-    };
+      return names[0][0].toUpperCase();
+    }
+    
+    if (user.email) {
+      return user.email[0].toUpperCase();
+    }
+    
+    return 'U';
+  };
 
-    checkAuth();
-  }, [pathname]); // Re-run when pathname changes
+  // Get display name
+  const getDisplayName = () => {
+    if (!user) return '';
+    
+    if (user.user_metadata?.full_name) {
+      return user.user_metadata.full_name;
+    }
+    
+    if (user.email) {
+      return user.email.split('@')[0];
+    }
+    
+    return 'User';
+  };
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-16 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
-        <div className="flex justify-between items-center h-full">
-          <div className="flex items-center">
-            <Link href="/" className="flex items-center">
-              <span className="text-xl font-bold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">
-                Mindfulness Chatbot
-              </span>
-            </Link>
-            
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex ml-10 items-center space-x-8">
-              <Link href="/" className={`inline-flex items-center px-2 py-1 text-sm ${isActive('/')}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
-                </svg>
-                Dashboard
-              </Link>
-              <Link href="/chat" className={`inline-flex items-center px-2 py-1 text-sm ${isActive('/chat')}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-                AI Chat
-              </Link>
-              <Link href="/exercises" className={`inline-flex items-center px-2 py-1 text-sm ${isActive('/exercises')}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Exercises
-              </Link>
-              <Link href="/mood-tracker" className={`inline-flex items-center px-2 py-1 text-sm ${isActive('/mood-tracker')}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                Mood Tracker
-              </Link>
-            </nav>
-          </div>
+    <header className="bg-white shadow-sm fixed top-0 w-full z-10">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex justify-between items-center">
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-xl font-bold text-teal-600">Mindfulness</span>
+          </Link>
           
-          {/* Mobile Menu Button */}
-          <button 
-            className="md:hidden flex items-center p-2 rounded-md text-gray-600 hover:text-teal-500 focus:outline-none"
-            onClick={toggleMenu}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
-            </svg>
-          </button>
-          
-          <div className="hidden md:flex items-center space-x-4">
-            {user ? (
-              <div className="flex items-center space-x-4">
-                <span className="text-gray-700">Welcome, {user.name.split(' ')[0]}</span>
-                <button 
-                  onClick={handleLogout}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm 
-                    text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-emerald-500 
-                    hover:from-emerald-500 hover:to-teal-500 transition-all duration-300 ease-in-out
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <Link 
-                href="/auth/login" 
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm 
-                  text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-emerald-500 
-                  hover:from-emerald-500 hover:to-teal-500 transition-all duration-300 ease-in-out
-                  focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                </svg>
-                Login
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="md:hidden bg-white shadow-lg border-t border-gray-200 pt-2 pb-4 px-4">
-          <nav className="flex flex-col space-y-3">
-            <Link 
-              href="/" 
-              className={`flex items-center py-2 px-4 rounded-md ${pathname === '/' ? 'bg-teal-50 text-teal-500' : 'text-gray-600'}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
-              </svg>
-              Dashboard
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex space-x-8">
+            <Link href="/" className={isActive('/')}>
+              Home
             </Link>
-            <Link 
-              href="/chat" 
-              className={`flex items-center py-2 px-4 rounded-md ${pathname === '/chat' ? 'bg-teal-50 text-teal-500' : 'text-gray-600'}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-              AI Chat
-            </Link>
-            <Link 
-              href="/exercises" 
-              className={`flex items-center py-2 px-4 rounded-md ${pathname === '/exercises' ? 'bg-teal-50 text-teal-500' : 'text-gray-600'}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <Link href="/exercises" className={isActive('/exercises')}>
               Exercises
             </Link>
-            <Link 
-              href="/mood-tracker" 
-              className={`flex items-center py-2 px-4 rounded-md ${pathname === '/mood-tracker' ? 'bg-teal-50 text-teal-500' : 'text-gray-600'}`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+            <Link href="/chat" className={isActive('/chat')}>
+              Chat
+            </Link>
+            <Link href="/mood-tracker" className={isActive('/mood-tracker')}>
               Mood Tracker
             </Link>
-            
-            {/* Mobile Auth Buttons */}
-            <div className="pt-2 mt-2 border-t border-gray-200">
-              {user ? (
-                <div className="space-y-3">
-                  <p className="text-gray-700 px-4">Welcome, {user.name.split(' ')[0]}</p>
+          </nav>
+          
+          {/* User Menu - Desktop */}
+          <div className="hidden md:flex items-center space-x-4">
+            {isLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
+            ) : user ? (
+              <div className="relative group">
+                <button className="flex items-center space-x-2 group">
+                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-800 font-medium">
+                    {getUserInitials()}
+                  </div>
+                  <span className="text-gray-700">{getDisplayName()}</span>
+                </button>
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 invisible group-hover:visible transition-all duration-200 opacity-0 group-hover:opacity-100">
+                  <Link href="/auth/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    Profile
+                  </Link>
                   <button 
-                    onClick={() => {
-                      handleLogout();
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full flex items-center py-2 px-4 rounded-md text-white bg-gradient-to-r from-teal-500 to-emerald-500"
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
                     Logout
                   </button>
                 </div>
-              ) : (
-                <Link 
-                  href="/auth/login"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-full flex items-center py-2 px-4 rounded-md text-white bg-gradient-to-r from-teal-500 to-emerald-500"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
+              </div>
+            ) : (
+              <>
+                <Link href="/auth/login" className="text-gray-600 hover:text-teal-500">
                   Login
                 </Link>
+                <Link 
+                  href="/auth/signup" 
+                  className="bg-teal-500 text-white px-4 py-2 rounded-md hover:bg-teal-600 transition"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
+          </div>
+          
+          {/* Mobile menu button */}
+          <button onClick={toggleMenu} className="md:hidden text-gray-500 focus:outline-none">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isMenuOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               )}
-            </div>
-          </nav>
+            </svg>
+          </button>
         </div>
-      )}
+        
+        {/* Mobile Navigation */}
+        {isMenuOpen && (
+          <div className="md:hidden mt-4 pb-4">
+            <nav className="flex flex-col space-y-3">
+              <Link 
+                href="/" 
+                className="text-gray-600 hover:text-teal-500 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
+              </Link>
+              <Link 
+                href="/exercises" 
+                className="text-gray-600 hover:text-teal-500 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Exercises
+              </Link>
+              <Link 
+                href="/chat" 
+                className="text-gray-600 hover:text-teal-500 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Chat
+              </Link>
+              <Link 
+                href="/mood-tracker" 
+                className="text-gray-600 hover:text-teal-500 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Mood Tracker
+              </Link>
+              
+              <div className="pt-3 border-t border-gray-200">
+                {user ? (
+                  <>
+                    <div className="flex items-center space-x-2 py-2">
+                      <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-800 font-medium">
+                        {getUserInitials()}
+                      </div>
+                      <span className="text-gray-700 font-medium">{getDisplayName()}</span>
+                    </div>
+                    <Link 
+                      href="/auth/profile" 
+                      className="block text-gray-600 hover:text-teal-500 py-2"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        handleLogout();
+                        setIsMenuOpen(false);
+                      }}
+                      className="text-gray-600 hover:text-teal-500 py-2"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link 
+                      href="/auth/login" 
+                      className="block text-gray-600 hover:text-teal-500 py-2"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Login
+                    </Link>
+                    <Link 
+                      href="/auth/signup" 
+                      className="block text-teal-500 font-medium py-2"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                )}
+              </div>
+            </nav>
+          </div>
+        )}
+      </div>
     </header>
   );
 };

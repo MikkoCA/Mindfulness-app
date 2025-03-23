@@ -1,102 +1,244 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { v4 as uuidv4 } from 'uuid';
+import { AssemblyAI } from 'assemblyai';
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { messages, model = 'openai/gpt-3.5-turbo' } = body;
+interface Message {
+  id?: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: any;
+  timestamp?: Date;
+}
 
-    if (!process.env.OPENROUTER_API_KEY) {
-      console.error('OpenRouter API key is missing');
-      return NextResponse.json(
-        { error: 'OpenRouter API key is not configured' },
-        { status: 500 }
-      );
+interface TranscriptionResult {
+  text: string;
+  language_code?: string;
+  words?: any[];
+  metadata?: any;
+}
+
+class AudioTranscriptionService {
+  private client: AssemblyAI;
+
+  constructor() {
+    const apiKey = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('AssemblyAI API key missing');
     }
+    this.client = new AssemblyAI({
+      apiKey: apiKey
+    });
+  }
 
+  async transcribe(audioFile: File): Promise<TranscriptionResult> {
+    const tempFilePath = await this.saveTempFile(audioFile);
+    
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://mindfulness-app-ngpm.vercel.app',
-          'X-Title': 'Mindfulness Chatbot'
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.7,
-          max_tokens: 1000
-        })
-      });
+      // First upload the file
+      const uploadResponse = await this.client.files.upload(tempFilePath);
+      if (!uploadResponse) {
+        throw new Error('Failed to upload file to AssemblyAI');
+      }
 
-      // Log response headers for debugging
-      console.log('OpenRouter response status:', response.status);
-      console.log('OpenRouter response headers:', Object.fromEntries([...response.headers.entries()]));
+      // Configure transcription options
+      const config = {
+        audio_url: uploadResponse,
+        speaker_labels: true,
+        language_detection: false,  // Disable auto language detection
+        language_code: "en",  // Force English transcription
+        speech_model: "nano" as const  // Use the faster Nano model with correct type
+      };
+
+      // Start transcription
+      console.log('Starting transcription with Nano model:', config);
+      const transcript = await this.client.transcripts.transcribe(config);
+      console.log('Transcription response:', transcript);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch {
-          errorData = { rawError: errorText };
+      if (!transcript) {
+        throw new Error('Failed to get transcription from AssemblyAI');
+      }
+
+      return {
+        text: transcript.text || '',
+        language_code: transcript.language_code || 'en',
+        words: transcript.words || [],
+        metadata: {
+          confidence: transcript.confidence,
+          speaker_labels: transcript.speaker_labels || [],
+          utterances: transcript.utterances || [],
+          language_code: transcript.language_code
         }
-        
-        console.error('OpenRouter API error:', errorData);
+      };
+    } finally {
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (err) {
+        console.warn('Failed to delete temporary file:', err);
+      }
+    }
+  }
+
+  private async saveTempFile(file: File): Promise<string> {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const tempDir = os.tmpdir();
+    const extension = file.type.split('/')[1] || 'mp3';
+    const tempFilePath = path.join(tempDir, `${uuidv4()}.${extension}`);
+    fs.writeFileSync(tempFilePath, buffer);
+    return tempFilePath;
+  }
+}
+
+// Configure the API route to accept large files
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: false,
+  },
+};
+
+export async function POST(req: NextRequest) {
+  try {
+    let messages;
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const audioFile = formData.get('file') as File;
+      
+      if (!audioFile) {
         return NextResponse.json(
-          { 
-            error: errorData.error?.message || `API request failed with status ${response.status}`,
-            details: errorData
-          },
-          { status: response.status }
+          { error: 'No audio file provided' },
+          { status: 400 }
+        );
+      }
+      
+      // Validate file size (1GB limit)
+      if (audioFile.size > 1024 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'Audio file too large. Maximum size is 1GB.' },
+          { status: 400 }
         );
       }
 
       try {
-        const data = await response.json();
+        const transcriptionService = new AudioTranscriptionService();
+        const transcription = await transcriptionService.transcribe(audioFile);
         
-        // Validate response format
-        if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-          console.error('Invalid response format from OpenRouter:', data);
-          return NextResponse.json(
-            { 
-              error: 'Invalid response format from AI provider',
-              details: data
-            },
-            { status: 500 }
-          );
+        // Get previous messages from form data
+        const previousMessages = formData.get('messages');
+        let allMessages = [];
+        
+        if (previousMessages) {
+          try {
+            allMessages = JSON.parse(previousMessages as string);
+          } catch (e) {
+            console.warn('Failed to parse previous messages:', e);
+          }
         }
         
-        return NextResponse.json(data);
-      } catch (parseError) {
-        console.error('Error parsing OpenRouter response:', parseError);
+        // First, return the transcription result directly
+        if (transcription.text) {
+          return NextResponse.json({
+            text: transcription.text,
+            language_code: transcription.language_code,
+            metadata: transcription.metadata
+          });
+        }
+        
+        // If no transcription text, return error
         return NextResponse.json(
-          { 
-            error: 'Error parsing response from AI provider',
-            details: parseError instanceof Error ? parseError.message : String(parseError)
-          },
+          { error: 'No transcription text received' },
+          { status: 400 }
+        );
+      } catch (error) {
+        console.error('Audio processing error:', error);
+        return NextResponse.json(
+          { error: 'Failed to process audio. Please try again.' },
           { status: 500 }
         );
       }
-    } catch (fetchError) {
-      console.error('Fetch error when contacting OpenRouter:', fetchError);
+    } else {
+      // Handle regular text message
+      try {
+        const jsonData = await req.json();
+        messages = jsonData.messages || [];
+        
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+          return NextResponse.json(
+            { error: 'Invalid messages format' },
+            { status: 400 }
+          );
+        }
+      } catch (error) {
+        return NextResponse.json(
+          { error: 'Invalid JSON in request body' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Get OpenRouter API key from environment variables
+    const openRouterApiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    if (!openRouterApiKey) {
       return NextResponse.json(
-        { 
-          error: 'Error connecting to AI provider',
-          details: fetchError instanceof Error ? fetchError.message : String(fetchError)
-        },
+        { error: 'Server configuration error: OpenRouter API key missing' },
         { status: 500 }
       );
     }
-  } catch (error) {
-    console.error('Error in chat API route:', error);
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : String(error)
+    
+    // Format the conversation for the API
+    const conversationMessages = messages.map((msg: Message) => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    
+    // Add system message for context
+    conversationMessages.unshift({
+      role: 'system',
+      content: `You are a mindfulness and meditation assistant focused on helping users with stress management, 
+      anxiety reduction, and mindfulness practices. Provide friendly, supportive responses that are concise 
+      and actionable. If you're responding to an audio message, be extra supportive and encouraging 
+      since the user chose to speak rather than type.`
+    });
+    
+    // Send to OpenRouter API
+    const chatResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'HTTP-Referer': 'https://mindfulness-chatbot.vercel.app',
+        'X-Title': 'Mindfulness Chatbot'
       },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-pro-exp-02-05:free",
+        messages: conversationMessages,
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    });
+    
+    if (!chatResponse.ok) {
+      const errorText = await chatResponse.text();
+      console.error('OpenRouter API error:', errorText);
+      return NextResponse.json(
+        { error: 'Failed to get response from AI' },
+        { status: chatResponse.status }
+      );
+    }
+    
+    const data = await chatResponse.json();
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     );
   }

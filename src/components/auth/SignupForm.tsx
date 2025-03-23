@@ -1,285 +1,142 @@
 'use client';
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signupUser, getCurrentUser } from '@/lib/auth0';
-
-// Add proper types for errors
-interface AuthError {
-  message: string;
-  code?: string;
-}
-
-interface SignupError {
-  message: string;
-  code?: string;
-  status?: number;
-  name?: string;
-}
+import { createClient } from '@/lib/supabase/client';
 
 const SignupForm = () => {
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<AuthError | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{
-    name?: string;
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-    terms?: string;
-  }>({});
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      const user = await getCurrentUser();
-      if (user) {
-        // User is already logged in, redirect to home
-        router.push('/');
-      }
-    };
-    
-    checkAuth();
-  }, [router]);
-
-  const validateForm = (): boolean => {
-    const errors: {
-      name?: string;
-      email?: string;
-      password?: string;
-      confirmPassword?: string;
-      terms?: string;
-    } = {};
-    let isValid = true;
-
-    // Reset errors
-    setFieldErrors({});
-    setError(null);
-
-    // Name validation
-    if (!name.trim()) {
-      errors.name = 'Name is required';
-      isValid = false;
-    } else if (name.trim().length < 2) {
-      errors.name = 'Name must be at least 2 characters';
-      isValid = false;
-    }
-
-    // Email validation
-    if (!email) {
-      errors.email = 'Email is required';
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = 'Email is invalid';
-      isValid = false;
-    }
-
-    // Password validation
-    if (!password) {
-      errors.password = 'Password is required';
-      isValid = false;
-    } else if (password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
-      isValid = false;
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      errors.password = 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
-      isValid = false;
-    }
-
-    // Confirm password validation
-    if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-      isValid = false;
-    }
-
-    // Terms validation
-    if (!termsAccepted) {
-      errors.terms = 'You must accept the Terms of Service and Privacy Policy';
-      isValid = false;
-    }
-
-    setFieldErrors(errors);
-    return isValid;
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
     
-    // Validate form
-    if (!validateForm()) {
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      setIsLoading(false);
       return;
     }
-
-    setIsLoading(true);
-
+    
     try {
-      // Call the signupUser function from our auth service
-      await signupUser(name, email, password);
+      const supabase = createClient();
       
-      // Redirect to login page after successful signup
-      router.push('/auth/login?signup=success');
-    } catch (err: unknown) {
-      const error = err as SignupError;
-      // Handle specific error messages
-      if (error.message === 'Email already in use') {
-        setFieldErrors({
-          ...fieldErrors,
-          email: 'This email is already registered. Please use a different email or log in.'
-        });
-      } else if (error.message.includes('network')) {
-        setError({ message: 'Network error. Please check your connection and try again.' });
-      } else {
-        setError({ message: error.message || 'Failed to sign up. Please try again.' });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          }
+        }
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
       }
-      console.error('Signup error:', error);
+
+      if (data?.user) {
+        router.push('/auth/verification?email=' + encodeURIComponent(email));
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to sign up');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-      <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">Create an Account</h2>
+    <div className="max-w-md w-full space-y-8">
+      <div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Create your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <Link href="/auth/login" className="font-medium text-teal-600 hover:text-teal-500">
+            sign in to your existing account
+          </Link>
+        </p>
+      </div>
       
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
-          {error.message}
+        <div className="rounded-md bg-red-50 p-4 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          </div>
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form className="mt-8 space-y-6" onSubmit={handleSignup}>
+        <div className="rounded-md shadow-sm -space-y-px">
+          <div>
+            <label htmlFor="full-name" className="sr-only">Full name</label>
+            <input
+              id="full-name"
+              name="fullName"
+              type="text"
+              autoComplete="name"
+              required
+              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+              placeholder="Full name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="email-address" className="sr-only">Email address</label>
+            <input
+              id="email-address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="sr-only">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+              placeholder="Password (min. 6 characters)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+        </div>
+
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-            Full Name
-          </label>
-          <input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={`w-full border ${fieldErrors.name ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="John Doe"
-          />
-          {fieldErrors.name && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>
-          )}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50"
+          >
+            {isLoading ? 'Creating account...' : 'Create account'}
+          </button>
         </div>
-        
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={`w-full border ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="you@example.com"
-          />
-          {fieldErrors.email && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-          )}
-        </div>
-        
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={`w-full border ${fieldErrors.password ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="••••••••"
-          />
-          {fieldErrors.password && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
-          )}
-          <p className="mt-1 text-xs text-gray-500">
-            Password must be at least 8 characters and include uppercase, lowercase, and numbers.
-          </p>
-        </div>
-        
-        <div>
-          <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm Password
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className={`w-full border ${fieldErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="••••••••"
-          />
-          {fieldErrors.confirmPassword && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</p>
-          )}
-        </div>
-        
-        <div className="flex items-center">
-          <input
-            id="terms"
-            type="checkbox"
-            checked={termsAccepted}
-            onChange={(e) => setTermsAccepted(e.target.checked)}
-            className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ${fieldErrors.terms ? 'border-red-500' : ''}`}
-          />
-          <label htmlFor="terms" className={`ml-2 block text-sm ${fieldErrors.terms ? 'text-red-600' : 'text-gray-700'}`}>
-            I agree to the{' '}
-            <a href="/terms" className="text-blue-600 hover:underline">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="/privacy" className="text-blue-600 hover:underline">
-              Privacy Policy
-            </a>
-          </label>
-        </div>
-        {fieldErrors.terms && (
-          <p className="mt-1 text-sm text-red-600">{fieldErrors.terms}</p>
-        )}
-        
-        <button
-          type="submit"
-          disabled={isLoading}
-          className={`w-full bg-blue-600 text-white py-2 rounded-md font-medium ${
-            isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'
-          }`}
-        >
-          {isLoading ? 'Creating account...' : 'Sign Up'}
-        </button>
       </form>
-      
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Or continue with</span>
-          </div>
-        </div>
-        
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          {/* Removed Google and GitHub signup buttons */}
-        </div>
-      </div>
-      
-      <p className="mt-8 text-center text-sm text-gray-600">
-        Already have an account?{' '}
-        <Link href="/auth/login" className="text-blue-600 hover:underline font-medium">
-          Log in
-        </Link>
-      </p>
     </div>
   );
 };

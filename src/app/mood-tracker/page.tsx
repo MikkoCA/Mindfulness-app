@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-import { MoodEntry, User } from '@/types';
-import { getCurrentUser } from '@/lib/auth0';
-import AuthCheck from '@/components/auth/AuthCheck';
+import { MoodEntry } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
 import { motion } from 'framer-motion';
+import AuthGuard from '@/components/auth/AuthGuard';
+import Link from 'next/link';
 
 type MoodOption = {
   value: 'very_happy' | 'happy' | 'neutral' | 'sad' | 'very_sad';
@@ -21,15 +22,15 @@ const moodOptions: MoodOption[] = [
     value: 'very_happy', 
     label: 'Very Happy', 
     emoji: '😄', 
-    color: 'bg-green-500',
+    color: 'bg-emerald-500',
     score: 5,
-    description: 'Feeling great! Full of energy and positivity'
+    description: 'Feeling fantastic and full of energy!'
   },
   { 
     value: 'happy', 
     label: 'Happy', 
     emoji: '🙂', 
-    color: 'bg-green-400',
+    color: 'bg-emerald-400',
     score: 4,
     description: 'Content and in good spirits'
   },
@@ -37,7 +38,7 @@ const moodOptions: MoodOption[] = [
     value: 'neutral', 
     label: 'Neutral', 
     emoji: '😐', 
-    color: 'bg-yellow-400',
+    color: 'bg-amber-400',
     score: 3,
     description: 'Neither particularly good nor bad'
   },
@@ -45,7 +46,7 @@ const moodOptions: MoodOption[] = [
     value: 'sad', 
     label: 'Sad', 
     emoji: '😔', 
-    color: 'bg-red-400',
+    color: 'bg-rose-400',
     score: 2,
     description: 'Feeling down or upset'
   },
@@ -53,7 +54,7 @@ const moodOptions: MoodOption[] = [
     value: 'very_sad', 
     label: 'Very Sad', 
     emoji: '😢', 
-    color: 'bg-red-500',
+    color: 'bg-rose-500',
     score: 1,
     description: 'Really struggling or feeling very low'
   },
@@ -69,7 +70,7 @@ const factors = [
 ];
 
 export default function MoodTracker() {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const [selectedMood, setSelectedMood] = useState<MoodOption | null>(null);
   const [note, setNote] = useState('');
   const [selectedFactors, setSelectedFactors] = useState<string[]>([]);
@@ -80,12 +81,6 @@ export default function MoodTracker() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
-    };
-    fetchUser();
-
     // Load mood history
     const savedMoods = localStorage.getItem('mood_entries');
     if (savedMoods) {
@@ -166,15 +161,13 @@ export default function MoodTracker() {
 
   const getMoodTrend = (): string => {
     try {
-      // Only calculate if we have at least 3 entries
-      if (moodHistory.length < 3) return 'Not enough data';
+      // If we have fewer than 2 entries, we can't calculate a trend
+      if (moodHistory.length < 2) return 'Not enough data';
       
       // Get the last 5 entries, sorted by date
       const recentEntries = [...moodHistory]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5);
-      
-      if (recentEntries.length < 2) return 'Not enough data';
       
       // Calculate if mood is improving, worsening, or stable
       const oldestScore = recentEntries[recentEntries.length - 1].moodValue;
@@ -191,6 +184,9 @@ export default function MoodTracker() {
   };
 
   const getAverageMood = (days: number) => {
+    // If we have no entries at all, return null
+    if (moodHistory.length === 0) return null;
+    
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     
@@ -198,7 +194,13 @@ export default function MoodTracker() {
       entry => new Date(entry.date) >= cutoff
     );
 
-    if (relevantEntries.length === 0) return null;
+    // If we have entries but none in the specified time period,
+    // use all available entries instead of returning null
+    if (relevantEntries.length === 0) {
+      // Use all entries if we don't have any in the specified time period
+      const allEntriesAverage = moodHistory.reduce((sum, entry) => sum + entry.moodValue, 0) / moodHistory.length;
+      return parseFloat(allEntriesAverage.toFixed(2));
+    }
 
     const average = relevantEntries.reduce((sum, entry) => sum + entry.moodValue, 0) / relevantEntries.length;
     return parseFloat(average.toFixed(2));
@@ -218,104 +220,167 @@ export default function MoodTracker() {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.6 }}
       className="space-y-6"
     >
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">How are you feeling?</h2>
-        <div className="grid grid-cols-5 gap-4 mb-6">
-          {moodOptions.map((option) => (
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 p-8 border border-[rgb(203,251,241)]">
+        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-8">How are you feeling?</h2>
+        
+        {/* Mood Selection */}
+        <div className="grid grid-cols-5 gap-4 mb-8">
+          {moodOptions.map((option, index) => (
             <motion.button
               key={option.value}
               onClick={() => setSelectedMood(option)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`p-4 rounded-lg border-2 transition-all relative group ${
-                selectedMood?.value === option.value
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-300'
-              }`}
-            >
-              <div className="text-3xl mb-2">{option.emoji}</div>
-              <div className="text-sm font-medium">{option.label}</div>
-              
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                {option.description}
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-800"></div>
-              </div>
-            </motion.button>
-          ))}
-        </div>
-
-        <h3 className="font-medium mb-3">What factors are affecting your mood?</h3>
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {factors.map((factor) => (
-            <motion.button
-              key={factor.id}
-              onClick={() => {
-                setSelectedFactors(prev => 
-                  prev.includes(factor.id)
-                    ? prev.filter(f => f !== factor.id)
-                    : [...prev, factor.id]
-                );
+              whileHover={{ scale: 1.05, y: -5, rotateX: 5 }}
+              whileTap={{ scale: 0.97 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ 
+                duration: 0.4, 
+                delay: index * 0.08,
+                type: "spring",
+                stiffness: 300,
+                damping: 25
               }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`p-3 rounded-lg border-2 transition-all flex items-center space-x-2 relative group ${
-                selectedFactors.includes(factor.id)
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-300'
+              className={`group flex flex-col items-center justify-center p-6 rounded-xl transition-all transform perspective-1000 ${
+                selectedMood?.value === option.value
+                  ? `${option.color} bg-opacity-15 ring-2 ring-opacity-70 ring-offset-4 ring-[rgb(203,251,241)]`
+                  : 'bg-white/90 hover:bg-[rgb(203,251,241)] shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20'
               }`}
             >
-              <span className="text-xl">{factor.icon}</span>
-              <span className="text-sm font-medium">{factor.label}</span>
-              
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                {factor.description}
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-800"></div>
-              </div>
+              <motion.div 
+                className="text-4xl mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-12"
+                animate={{ 
+                  rotate: selectedMood?.value === option.value ? [0, -12, 12, -12, 0] : 0,
+                  scale: selectedMood?.value === option.value ? [1, 1.1, 1.1, 1.1, 1] : 1
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: selectedMood?.value === option.value ? Infinity : 0,
+                  repeatDelay: 1
+                }}
+              >
+                {option.emoji}
+              </motion.div>
+              <div className="text-sm font-semibold text-gray-700">{option.label}</div>
+              {selectedMood?.value === option.value && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs text-gray-500 mt-2 text-center"
+                >
+                  {option.description}
+                </motion.div>
+              )}
             </motion.button>
           ))}
         </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        {/* Factors Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">What factors are affecting your mood?</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {factors.map((factor, index) => (
+              <motion.button
+                key={factor.id}
+                onClick={() => {
+                  setSelectedFactors(prev => 
+                    prev.includes(factor.id)
+                      ? prev.filter(f => f !== factor.id)
+                      : [...prev, factor.id]
+                  );
+                }}
+                whileHover={{ scale: 1.03, y: -2, rotateX: 5 }}
+                whileTap={{ scale: 0.97 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ 
+                  duration: 0.4, 
+                  delay: 0.3 + (index * 0.05),
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 25
+                }}
+                className={`group flex items-center p-4 rounded-xl transition-all transform perspective-1000 ${
+                  selectedFactors.includes(factor.id)
+                    ? 'bg-[rgb(203,251,241)] ring-2 ring-teal-200 shadow-xl shadow-teal-500/20'
+                    : 'bg-white/90 hover:bg-[rgb(203,251,241)] shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20'
+                }`}
+              >
+                <motion.span 
+                  className="text-2xl mr-3"
+                  animate={{ 
+                    rotate: selectedFactors.includes(factor.id) ? [0, -12, 12, -12, 0] : 0,
+                    scale: selectedFactors.includes(factor.id) ? [1, 1.1, 1.1, 1.1, 1] : 1
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: selectedFactors.includes(factor.id) ? Infinity : 0,
+                    repeatDelay: 1
+                  }}
+                >
+                  {factor.icon}
+                </motion.span>
+                <div>
+                  <span className="text-sm font-semibold text-gray-700">{factor.label}</span>
+                  <p className="text-xs text-gray-500 mt-1">{factor.description}</p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Note Section */}
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+        >
+          <label className="block text-lg font-semibold text-gray-800 mb-3">
             Add a note (optional)
           </label>
           <div className="relative">
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 transition-all"
-              rows={3}
+              className="w-full px-5 py-4 border border-[rgb(203,251,241)] rounded-xl shadow-xl shadow-teal-500/10 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white/90 backdrop-blur-sm hover:shadow-2xl hover:shadow-teal-500/20"
+              rows={4}
               placeholder="How was your day? What made you feel this way?"
+              maxLength={500}
             />
-            <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-              {note.length}/500 characters
+            <div className="absolute bottom-4 right-4 text-sm text-gray-400 font-medium">
+              {note.length}/500
             </div>
           </div>
-        </div>
+        </motion.div>
 
+        {/* Submit Button */}
         <motion.button
           onClick={handleSubmit}
           disabled={!selectedMood || isSubmitting}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className={`w-full py-3 px-4 rounded-md text-white font-medium transition-all ${
+          whileHover={!selectedMood || isSubmitting ? {} : { scale: 1.02, y: -2 }}
+          whileTap={!selectedMood || isSubmitting ? {} : { scale: 0.98 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.7 }}
+          className={`w-full py-4 px-6 rounded-xl text-white font-semibold text-lg transition-all ${
             !selectedMood || isSubmitting
               ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg'
+              : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30'
           }`}
         >
           {isSubmitting ? (
             <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-              Saving...
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
+              Saving your mood...
             </div>
           ) : (
-            'Save Mood'
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-lg">✨</span>
+              <span>Save Mood</span>
+            </div>
           )}
         </motion.button>
       </div>
@@ -326,254 +391,493 @@ export default function MoodTracker() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.6 }}
       className="space-y-6"
     >
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Mood History</h2>
-        <div className="space-y-4">
-          {moodHistory.map((entry, index) => {
-            const moodOption = moodOptions.find(m => m.value === entry.mood);
-            return (
-              <motion.div
-                key={entry.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                className={`border rounded-lg p-4 transition-all hover:shadow-md ${moodOption?.color} bg-opacity-10`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-2xl">{moodOption?.emoji}</span>
-                    <span className="font-medium">{moodOption?.label}</span>
-                  </div>
-                  <span className="text-sm text-gray-500">{formatDate(entry.date)}</span>
-                </div>
-                {entry.factors && entry.factors.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {entry.factors.map(factorId => {
-                      const factor = factors.find(f => f.id === factorId);
-                      return factor ? (
-                        <span key={factorId} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white bg-opacity-50 text-gray-800 shadow-sm">
-                          {factor.icon} {factor.label}
-                        </span>
-                      ) : null;
-                    })}
-                  </div>
-                )}
-                {entry.notes && (
-                  <p className="text-gray-600 text-sm bg-white bg-opacity-50 rounded-md p-2">{entry.notes}</p>
-                )}
-              </motion.div>
-            );
-          })}
-          {moodHistory.length === 0 && (
-            <div className="text-center py-8 border-2 border-dashed rounded-lg">
-              <div className="text-4xl mb-2">📝</div>
-              <p className="text-gray-500">No mood entries yet</p>
-              <button
-                onClick={() => setView('log')}
-                className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Start tracking your mood
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  const renderInsights = () => {
-    const trend = getMoodTrend();
-    const weeklyAvg = getAverageMood(7);
-    const monthlyAvg = getAverageMood(30);
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-6"
-      >
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg"
-          >
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Current Trend</h3>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl">{trend.includes('🔼') ? '🔼' : trend.includes('��') ? '🔽' : '➡️'}</span>
-              <span className="text-xl font-semibold capitalize">{trend.replace('🔼', 'Improving').replace('🔽', 'Declining').replace('➡️', 'Stable') || 'Not enough data'}</span>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg"
-          >
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Weekly Average</h3>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl">
-                {weeklyAvg ? moodOptions.find(m => m.score === Math.round(weeklyAvg))?.emoji : '📊'}
-              </span>
-              <span className="text-xl font-semibold">
-                {weeklyAvg ? `${weeklyAvg}/5` : 'No data'}
-              </span>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="bg-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg"
-          >
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Monthly Average</h3>
-            <div className="flex items-center space-x-2">
-              <span className="text-2xl">
-                {monthlyAvg ? moodOptions.find(m => m.score === Math.round(monthlyAvg))?.emoji : '📊'}
-              </span>
-              <span className="text-xl font-semibold">
-                {monthlyAvg ? `${monthlyAvg}/5` : 'No data'}
-              </span>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Factor Analysis */}
-        <motion.div
-          className="bg-white rounded-lg shadow-md p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <h2 className="text-xl font-semibold mb-4">Factor Analysis</h2>
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 p-8 border border-[rgb(203,251,241)]">
+        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-8">Mood History</h2>
+        
+        {moodHistory.length > 0 ? (
           <div className="space-y-4">
-            {factors.map((factor, index) => {
-              const stats = factorStats[factor.id];
-              if (!stats) return null;
-              
+            {moodHistory.map((entry, index) => {
+              const moodOption = moodOptions.find(m => m.value === entry.mood);
               return (
                 <motion.div
-                  key={factor.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="border rounded-lg p-4 hover:shadow-md transition-all"
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                  className="group bg-white/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20 transition-all hover:-translate-y-1 transform perspective-1000"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xl">{factor.icon}</span>
-                      <span className="font-medium">{factor.label}</span>
+                  {/* Header with background color */}
+                  <div className={`${moodOption?.color} bg-opacity-10 p-5`}>
+                    <div className="flex justify-between items-center flex-wrap gap-3">
+                      <div className="flex items-center">
+                        <motion.span 
+                          className="text-3xl mr-3"
+                          animate={{ 
+                            rotate: [0, -12, 12, -12, 0],
+                            scale: [1, 1.1, 1.1, 1.1, 1]
+                          }}
+                          transition={{ 
+                            duration: 2,
+                            repeat: Infinity,
+                            repeatDelay: 3
+                          }}
+                        >
+                          {moodOption?.emoji}
+                        </motion.span>
+                        <span className="font-semibold text-gray-800">{moodOption?.label}</span>
+                      </div>
+                      <span className="text-sm bg-white/90 backdrop-blur-sm text-gray-600 px-3 py-1.5 rounded-lg shadow-lg">
+                        {formatDate(entry.date)}
+                      </span>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {stats.count} entries
-                    </span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="flex-grow bg-gray-200 rounded-full h-2 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(stats.avgMood / 5) * 100}%` }}
-                        transition={{ duration: 1, delay: index * 0.1 }}
-                        className="bg-blue-600 rounded-full h-2"
-                      />
-                    </div>
-                    <span className="text-sm font-medium">
-                      {stats.avgMood.toFixed(1)}/5
-                    </span>
+                  
+                  {/* Content */}
+                  <div className="p-5">
+                    {/* Factors */}
+                    {entry.factors && entry.factors.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {entry.factors.map(factorId => {
+                          const factor = factors.find(f => f.id === factorId);
+                          return factor ? (
+                            <motion.span 
+                              key={factorId} 
+                              className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100/80 text-gray-700 hover:bg-gray-200/80 transition-colors group"
+                              whileHover={{ scale: 1.05, y: -2 }}
+                            >
+                              <motion.span 
+                                className="mr-2"
+                                animate={{ 
+                                  rotate: [0, -12, 12, -12, 0],
+                                  scale: [1, 1.1, 1.1, 1.1, 1]
+                                }}
+                                transition={{ 
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  repeatDelay: 3
+                                }}
+                              >
+                                {factor.icon}
+                              </motion.span>
+                              {factor.label}
+                            </motion.span>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Notes */}
+                    {entry.notes && (
+                      <p className="text-gray-600 text-sm leading-relaxed">{entry.notes}</p>
+                    )}
                   </div>
                 </motion.div>
               );
             })}
           </div>
-        </motion.div>
-      </motion.div>
-    );
-  };
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl"
+          >
+            <motion.div 
+              className="text-6xl mb-4"
+              animate={{ 
+                y: [0, -10, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                repeatDelay: 1
+              }}
+            >
+              📝
+            </motion.div>
+            <p className="text-gray-500 mb-6 text-lg">No mood entries yet</p>
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setView('log')}
+              className="px-6 py-3 bg-gradient-to-r from-teal-600 via-emerald-600 to-lime-600 text-white rounded-xl font-semibold hover:from-teal-700 hover:via-emerald-700 hover:to-lime-700 transition-all shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✨</span>
+                <span>Start tracking your mood</span>
+              </div>
+            </motion.button>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
 
-  return (
-    <AuthCheck>
-      <div className="flex flex-col md:flex-row min-h-screen bg-white">
-        {/* Sidebar - hidden on mobile, shown on desktop */}
-        <div className="hidden md:block md:w-64 md:min-h-screen">
-          <Sidebar />
-        </div>
+  const renderInsights = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="space-y-6"
+    >
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 p-8 border border-[rgb(203,251,241)]">
+        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-8">Mood Insights</h2>
         
-        {/* Main content - full width on mobile, with left margin on desktop */}
-        <div className="flex-1 md:ml-64 p-4 md:p-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Mood Tracker</h1>
-          
-          {/* Mood stats summary - adjust layout for mobile */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-lg shadow-md p-4 text-center">
-              <div className="text-lg md:text-xl font-semibold text-blue-700">{getMoodTrend()}</div>
-              <div className="text-sm text-gray-500">Recent Trend</div>
-            </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-4 text-center">
-              <div className="text-lg md:text-xl font-semibold">
-                {getAverageMood(7) ? `${getAverageMood(7)}/5` : '-'}
+        {moodHistory.length > 0 ? (
+          <div className="space-y-8">
+            {/* Mood Trend Analysis */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Current Trend</h3>
+              <div className="bg-white/80 rounded-xl p-6 shadow-lg shadow-teal-500/5">
+                <div className="flex items-center mb-4">
+                  <motion.span 
+                    className="text-4xl mr-3"
+                    animate={{ 
+                      rotate: [0, -12, 12, -12, 0],
+                      scale: [1, 1.1, 1.1, 1.1, 1]
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 3
+                    }}
+                  >
+                    {getMoodTrend().includes('🔼') ? '🔼' : 
+                     getMoodTrend().includes('🔽') ? '🔽' : 
+                     '➡️'}
+                  </motion.span>
+                  <div>
+                    <p className={`text-lg font-semibold ${
+                      getMoodTrend().includes('🔼') ? 'text-emerald-600' : 
+                      getMoodTrend().includes('🔽') ? 'text-rose-600' : 
+                      'text-gray-600'
+                    }`}>
+                      {getMoodTrend()}
+                    </p>
+                    <p className="text-sm text-gray-500">Based on your recent entries</p>
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-gray-500">7-Day Avg</div>
             </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-4 text-center">
-              <div className="text-lg md:text-xl font-semibold">
-                {getAverageMood(30) ? `${getAverageMood(30)}/5` : '-'}
+
+            {/* Factor Analysis */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Factor Analysis</h3>
+              <div className="space-y-4">
+                {factors.map(factor => {
+                  const factorMoods = moodHistory.filter(entry => 
+                    entry.factors?.includes(factor.id)
+                  );
+                  const avgMood = factorMoods.length > 0
+                    ? factorMoods.reduce((sum, entry) => {
+                        const moodScore = moodOptions.find(m => m.value === entry.mood)?.score || 0;
+                        return sum + moodScore;
+                      }, 0) / factorMoods.length
+                    : 0;
+                  
+                  return (
+                    <motion.div
+                      key={factor.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      className="bg-white/80 rounded-xl p-6 shadow-lg shadow-teal-500/5"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center">
+                          <motion.span 
+                            className="text-2xl mr-3"
+                            animate={{ 
+                              rotate: [0, -12, 12, -12, 0],
+                              scale: [1, 1.1, 1.1, 1.1, 1]
+                            }}
+                            transition={{ 
+                              duration: 2,
+                              repeat: Infinity,
+                              repeatDelay: 3
+                            }}
+                          >
+                            {factor.icon}
+                          </motion.span>
+                          <div>
+                            <p className="font-semibold text-gray-800">{factor.label}</p>
+                            <p className="text-sm text-gray-500">{factorMoods.length} entries</p>
+                          </div>
+                        </div>
+                        {avgMood > 0 && (
+                          <div className="text-right">
+                            <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                              {avgMood.toFixed(1)}/5
+                            </p>
+                            <p className="text-sm text-gray-500">Average mood</p>
+                          </div>
+                        )}
+                      </div>
+                      {avgMood > 0 && (
+                        <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(avgMood / 5) * 100}%` }}
+                            transition={{ duration: 1, delay: 0.2 }}
+                            className={`absolute top-0 left-0 h-full rounded-full ${
+                              avgMood >= 4 ? 'bg-emerald-500' :
+                              avgMood >= 3 ? 'bg-teal-500' :
+                              avgMood >= 2 ? 'bg-yellow-500' :
+                              'bg-rose-500'
+                            }`}
+                          />
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
-              <div className="text-sm text-gray-500">30-Day Avg</div>
             </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-4 text-center">
-              <div className="text-lg md:text-xl font-semibold">{moodHistory.length}</div>
-              <div className="text-sm text-gray-500">Total Entries</div>
+
+            {/* Weekly Summary */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Weekly Summary</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <motion.div
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  className="bg-white/80 rounded-xl p-6 shadow-lg shadow-teal-500/5"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-600">Average Mood</p>
+                    <div className="flex items-center">
+                      <motion.span 
+                        className="text-2xl mr-2"
+                        animate={{ 
+                          rotate: [0, -12, 12, -12, 0],
+                          scale: [1, 1.1, 1.1, 1.1, 1]
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 3
+                        }}
+                      >
+                        {getAverageMood(7) ? moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : '📊'}
+                      </motion.span>
+                      <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                        {getAverageMood(7)?.toFixed(1) || '-'}/5
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500">Past 7 days</p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  className="bg-white/80 rounded-xl p-6 shadow-lg shadow-teal-500/5"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-600">Entries</p>
+                    <div className="flex items-center">
+                      <motion.span 
+                        className="text-2xl mr-2"
+                        animate={{ 
+                          rotate: [0, -12, 12, -12, 0],
+                          scale: [1, 1.1, 1.1, 1.1, 1]
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 3
+                        }}
+                      >
+                        📝
+                      </motion.span>
+                      <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                        {moodHistory.filter(entry => {
+                          const date = new Date(entry.date);
+                          const now = new Date();
+                          const diffTime = Math.abs(now.getTime() - date.getTime());
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          return diffDays <= 7;
+                        }).length}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500">Past 7 days</p>
+                </motion.div>
+              </div>
             </div>
           </div>
-          
-          {/* Use tabs for different sections on mobile */}
-          {isMobile ? (
-            <div className="mb-6">
-              <div className="flex border-b border-gray-200 mb-4">
-                <button 
-                  onClick={() => setView('log')} 
-                  className={`px-4 py-2 ${view === 'log' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-                >
-                  Log Mood
-                </button>
-                <button 
-                  onClick={() => setView('history')} 
-                  className={`px-4 py-2 ${view === 'history' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-                >
-                  History
-                </button>
-                <button 
-                  onClick={() => setView('insights')} 
-                  className={`px-4 py-2 ${view === 'insights' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-                >
-                  Insights
-                </button>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl"
+          >
+            <motion.div 
+              className="text-6xl mb-4"
+              animate={{ 
+                y: [0, -10, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                repeatDelay: 1
+              }}
+            >
+              📊
+            </motion.div>
+            <p className="text-gray-500 mb-6 text-lg">No mood data available yet</p>
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setView('log')}
+              className="px-6 py-3 bg-gradient-to-r from-teal-600 via-emerald-600 to-lime-600 text-white rounded-xl font-semibold hover:from-teal-700 hover:via-emerald-700 hover:to-lime-700 transition-all shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✨</span>
+                <span>Start tracking your mood</span>
               </div>
-              
+            </motion.button>
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <AuthGuard>
+      <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4"
+          >
+            <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+              Mood Tracker
+            </h1>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center text-teal-600 hover:text-teal-700 font-medium"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Dashboard
+            </Link>
+          </motion.div>
+
+          {/* Mood stats summary */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
+          >
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="bg-white/90 rounded-2xl shadow-lg shadow-teal-500/5 p-6 border border-[rgb(203,251,241)] backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-center mb-3">
+                <span className="text-3xl mr-3">
+                  {getMoodTrend().includes('🔼') ? '🔼' : 
+                   getMoodTrend().includes('🔽') ? '🔽' : 
+                   '➡️'}
+                </span>
+                <span className={`text-lg font-semibold ${
+                  getMoodTrend().includes('🔼') ? 'text-emerald-600' : 
+                  getMoodTrend().includes('🔽') ? 'text-rose-600' : 
+                  'text-amber-600'
+                }`}>
+                  {getMoodTrend().includes('🔼') ? 'Improving' : 
+                   getMoodTrend().includes('🔽') ? 'Declining' : 
+                   'Stable'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 text-center font-medium">Recent Trend</div>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="bg-white/90 rounded-2xl shadow-lg shadow-teal-500/5 p-6 border border-[rgb(203,251,241)] backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-center mb-3">
+                <span className="text-3xl mr-3">
+                  {getAverageMood(7) ? moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : '📊'}
+                </span>
+                <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                  {getAverageMood(7) ? `${getAverageMood(7)}/5` : '-'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 text-center font-medium">7-Day Average</div>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="bg-white/90 rounded-2xl shadow-lg shadow-teal-500/5 p-6 border border-[rgb(203,251,241)] backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-center mb-3">
+                <span className="text-3xl mr-3">
+                  {getAverageMood(30) ? moodOptions.find(m => m.score === Math.round(getAverageMood(30) || 0))?.emoji : '📊'}
+                </span>
+                <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                  {getAverageMood(30) ? `${getAverageMood(30)}/5` : '-'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 text-center font-medium">30-Day Average</div>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ scale: 1.02, y: -5 }}
+              className="bg-white/90 rounded-2xl shadow-lg shadow-teal-500/5 p-6 border border-[rgb(203,251,241)] backdrop-blur-sm"
+            >
+              <div className="flex items-center justify-center mb-3">
+                <motion.span 
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  className="text-3xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600"
+                >
+                  {moodHistory.length}
+                </motion.span>
+              </div>
+              <div className="text-sm text-gray-500 text-center font-medium">Total Entries</div>
+            </motion.div>
+          </motion.div>
+
+          {/* Main content area */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className={`col-span-1 ${view === 'log' ? 'lg:col-span-2' : ''}`}
+            >
               {view === 'log' && renderMoodLog()}
-              {view === 'history' && renderMoodHistory()}
+            </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className={`col-span-1 ${view === 'insights' ? 'lg:col-span-2' : ''}`}
+            >
               {view === 'insights' && renderInsights()}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="col-span-1">
-                {renderMoodLog()}
-              </div>
-              <div className="col-span-1">
-                {renderMoodHistory()}
-              </div>
-              <div className="col-span-1">
-                {renderInsights()}
-              </div>
-            </div>
-          )}
+            </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="col-span-1"
+            >
+              {renderMoodHistory()}
+            </motion.div>
+          </div>
         </div>
       </div>
-    </AuthCheck>
+    </AuthGuard>
   );
 } 

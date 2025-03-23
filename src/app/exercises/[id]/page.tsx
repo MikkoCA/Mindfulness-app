@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthGuard from '@/components/auth/AuthGuard';
+import { motion } from 'framer-motion';
 
 // Define the Exercise type with expanded content structure
 interface Exercise {
@@ -42,6 +45,7 @@ const DEFAULT_STEP_TIMING: Record<string, number[]> = {
 
 export default function ExercisePage() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -518,24 +522,41 @@ export default function ExercisePage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
-        <div className="flex justify-center items-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+      <AuthGuard>
+        <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
+          <div className="container mx-auto px-4 py-8 max-w-6xl">
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+                <p className="text-gray-600 font-medium">Loading exercise...</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   if (error || !exercise) {
     return (
-      <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-          <p className="text-red-700">{error || 'Exercise not found'}</p>
-          <Link href="/exercises" className="text-blue-600 hover:underline mt-2 inline-block">
-            ← Back to exercises
-          </Link>
+      <AuthGuard>
+        <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
+          <div className="container mx-auto px-4 py-8 max-w-6xl">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8 max-w-md">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Exercise Not Found</h2>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <Link 
+                  href="/exercises"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/20 hover:shadow-xl hover:shadow-teal-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Back to Exercises
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
@@ -548,178 +569,213 @@ export default function ExercisePage() {
   const wasCompletedBefore = checkIfCompleted();
 
   return (
-    <div className="container mx-auto px-4 py-6 sm:py-8 mb-20">
-      <div className="space-y-6 sm:space-y-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <Link href="/exercises" className="text-blue-600 hover:underline inline-flex items-center text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to exercises
-            </Link>
-            <h1 className="text-2xl sm:text-3xl font-bold mt-2">{exercise.title}</h1>
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full">
-                {EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category}
-              </span>
-              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-                {exercise.duration} min
-              </span>
-              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full capitalize">
-                {exercise.difficulty}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-4 sm:p-6">
-                <h2 className="text-xl font-semibold mb-3">Description</h2>
-                <p className="text-gray-700">{exercise.description}</p>
-              </div>
-            </div>
-            
-            {/* Preparation */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-4 sm:p-6">
-                <h2 className="text-xl font-semibold mb-3">Preparation</h2>
-                <p className="text-gray-700">{exercise.preparation}</p>
-              </div>
-            </div>
-            
-            {/* Benefits */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-4 sm:p-6">
-                <h2 className="text-xl font-semibold mb-3">Benefits</h2>
-                <ul className="list-disc pl-5 space-y-1 text-gray-700">
-                  {exercise.benefits?.map((benefit, index) => (
-                    <li key={index}>{benefit}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          {/* Timer Section */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Timer Card */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden sticky top-20">
-              <div className="p-4 sm:p-6">
-                <h2 className="text-xl font-semibold mb-4">Exercise Timer</h2>
-                
-                {/* Timer Display */}
-                <div className="mb-4">
-                  <div className="bg-gray-100 rounded-lg p-4 text-center">
-                    <div className="text-gray-700 mb-1 text-sm">Time Elapsed</div>
-                    <div className="text-3xl sm:text-4xl font-mono font-bold">{formatTime(time)}</div>
-                    <div className="mt-2 h-2 bg-gray-300 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-teal-500 to-emerald-500" 
-                        style={{ width: `${progress}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      {Math.floor(progress)}% complete
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Breathing Animation */}
-                {exercise.category === 'breathing' && isActive && !isPaused && (
-                  <div className="relative mb-6 w-32 h-32 mx-auto">
-                    <div className={`breathe-circle ${breathePhase}`}></div>
-                    <div className="absolute inset-0 flex items-center justify-center text-lg font-semibold">
-                      {breathePhase === 'inhale' ? 'Inhale' : 
-                       breathePhase === 'hold' ? 'Hold' : 
-                       breathePhase === 'exhale' ? 'Exhale' : 'Ready'}
-                    </div>
-                    <div className="text-center text-sm text-gray-600 mt-2">
-                      Breath: {breatheCount}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Control Buttons */}
-                <div className="flex justify-center space-x-4">
-                  {!isActive && !isPaused ? (
-                    <button 
-                      onClick={handleStart}
-                      className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Start
-                    </button>
-                  ) : isPaused ? (
-                    <button 
-                      onClick={handleResume}
-                      className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Resume
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={handlePause}
-                      className="px-4 sm:px-6 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-                    >
-                      Pause
-                    </button>
-                  )}
-                  
-                  <button 
-                    onClick={handleReset}
-                    className="px-4 sm:px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+    <AuthGuard>
+      <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6 }}
+          >
+            {/* Header */}
+            <div className="mb-8">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                <div>
+                  <Link 
+                    href="/exercises"
+                    className="inline-flex items-center text-teal-600 hover:text-teal-700 font-medium mb-2"
                   >
-                    Reset
-                  </button>
+                    <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Exercises
+                  </Link>
+                  <h1 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
+                    {exercise.title}
+                  </h1>
                 </div>
-                
-                {completed && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                    <h3 className="text-lg font-semibold text-green-800 mb-2">Great job!</h3>
-                    <p className="text-green-700">You&apos;ve completed this exercise. How do you feel?</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700">
+                    {exercise.duration} minutes
+                  </span>
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700">
+                    {EXERCISE_TYPES.find(t => t.value === exercise.category)?.label || exercise.category}
+                  </span>
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-[rgb(203,251,241)] text-teal-700 capitalize">
+                    {exercise.difficulty}
+                  </span>
+                </div>
+              </div>
+              <p className="text-gray-600 text-lg">{exercise.description}</p>
+            </div>
+
+            {/* Main Content */}
+            <div className="grid gap-8 grid-cols-1 lg:grid-cols-3">
+              {/* Exercise Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Timer Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6 }}
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8"
+                >
+                  <div className="text-center mb-8">
+                    <div className="text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-4">
+                      {formatTime(time)}
+                    </div>
+                    <div className="text-gray-600">
+                      {isActive ? (
+                        isPaused ? 'Paused' : 'In Progress'
+                      ) : completed ? 'Completed' : 'Ready to Begin'}
+                    </div>
                   </div>
-                )}
+
+                  <div className="flex justify-center gap-4">
+                    {!isActive && !completed ? (
+                      <button
+                        onClick={handleStart}
+                        className="px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/20 hover:shadow-xl hover:shadow-teal-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        Start Exercise
+                      </button>
+                    ) : (
+                      <>
+                        {isPaused ? (
+                          <button
+                            onClick={handleResume}
+                            className="px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg shadow-teal-500/20 hover:shadow-xl hover:shadow-teal-500/30 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            Resume
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handlePause}
+                            className="px-6 py-3 rounded-xl font-medium bg-white border border-[rgb(203,251,241)] text-teal-600 shadow-lg shadow-teal-500/10 hover:shadow-xl hover:shadow-teal-500/20 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            Pause
+                          </button>
+                        )}
+                        <button
+                          onClick={handleReset}
+                          className="px-6 py-3 rounded-xl font-medium bg-rose-50 border border-rose-200 text-rose-600 shadow-lg shadow-rose-500/10 hover:shadow-xl hover:shadow-rose-500/20 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="mt-8">
+                    <div className="relative h-2 bg-[rgb(203,251,241)] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(time / totalTime) * 100}%` }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-600 to-emerald-600 rounded-full"
+                      />
+                    </div>
+                    <div className="flex justify-between mt-2 text-sm text-gray-500">
+                      <span>0:00</span>
+                      <span>{formatTime(totalTime)}</span>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Current Step */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8"
+                >
+                  <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-6">
+                    Current Step
+                  </h2>
+                  <div className="text-lg text-gray-700 mb-6">
+                    {processedSteps[currentStep] || 'Ready to begin'}
+                  </div>
+                  {exercise.steps && (
+                    <div className="relative h-2 bg-[rgb(203,251,241)] rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${((currentStep + 1) / exercise.steps.length) * 100}%` }}
+                        transition={{ duration: 0.3 }}
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-600 to-emerald-600 rounded-full"
+                      />
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* Sidebar Content */}
+              <div className="space-y-6">
+                {/* Benefits */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 }}
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8"
+                >
+                  <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-4">
+                    Benefits
+                  </h2>
+                  <ul className="space-y-3">
+                    {exercise.benefits?.map((benefit, index) => (
+                      <li key={index} className="flex items-start gap-3">
+                        <span className="text-teal-500 mt-1">•</span>
+                        <span className="text-gray-600">{benefit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+
+                {/* Preparation */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4 }}
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8"
+                >
+                  <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-4">
+                    Preparation
+                  </h2>
+                  <p className="text-gray-600">{exercise.preparation}</p>
+                </motion.div>
+
+                {/* Tips */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.5 }}
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl shadow-teal-500/10 border border-[rgb(203,251,241)] p-8"
+                >
+                  <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 mb-4">
+                    Tips
+                  </h2>
+                  <ul className="space-y-3">
+                    {exercise.tips?.map((tip, index) => (
+                      <li key={index} className="flex items-start gap-3">
+                        <span className="text-teal-500 mt-1">•</span>
+                        <span className="text-gray-600">{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
-      
-      {/* Breathing animation helpers */}
-      <style jsx>{`
-        @keyframes grow-width {
-          0% { width: 0%; }
-          100% { width: 100%; }
-        }
-        
-        @keyframes shrink-width {
-          0% { width: 100%; }
-          100% { width: 0%; }
-        }
-        
-        .animate-grow-width {
-          animation: grow-width 4s linear forwards;
-        }
-        
-        .animate-shrink-width {
-          animation: shrink-width 8s linear forwards;
-        }
-        
-        .animate-hold {
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-          0% { opacity: 0.8; }
-          50% { opacity: 1; }
-          100% { opacity: 0.8; }
-        }
-      `}</style>
-    </div>
+
+      {/* Audio elements */}
+      <audio ref={bellSound} preload="auto">
+        <source src="/sounds/bell.mp3" type="audio/mpeg" />
+      </audio>
+      <audio ref={tickSound} preload="auto">
+        <source src="/sounds/tick.mp3" type="audio/mpeg" />
+      </audio>
+    </AuthGuard>
   );
 } 

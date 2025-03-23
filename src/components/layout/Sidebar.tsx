@@ -33,6 +33,9 @@ const Sidebar = () => {
   }, [pathname, isMobile]);
 
   const isActive = (path: string) => {
+    if (path === '/ai-chat' && (pathname === '/ai-chat' || pathname === '/chat')) {
+      return 'bg-teal-100 text-teal-600';
+    }
     return pathname === path ? 'bg-teal-100 text-teal-600' : 'text-gray-600 hover:bg-gray-50 hover:text-teal-600';
   };
 
@@ -103,8 +106,8 @@ const Sidebar = () => {
 
           <nav className="space-y-1">
             <Link 
-              href="/" 
-              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/')}`}
+              href="/dashboard" 
+              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/dashboard')}`}
               onClick={() => isMobile && setIsOpen(false)}
             >
               <svg 
@@ -125,8 +128,8 @@ const Sidebar = () => {
             </Link>
 
             <Link 
-              href="/chat" 
-              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/chat')}`}
+              href="/ai-chat" 
+              className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/ai-chat')}`}
               onClick={() => isMobile && setIsOpen(false)}
             >
               <svg 

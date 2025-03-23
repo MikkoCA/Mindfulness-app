@@ -3,201 +3,174 @@
 import { useState, FormEvent, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginUser, getCurrentUser } from '@/lib/auth0';
-
-// Add proper types for errors
-interface AuthError {
-  message: string;
-  code?: string;
-}
-
-interface LoginError {
-  message: string;
-  code?: string;
-  status?: number;
-  name?: string;
-}
+import { createClient } from '@/lib/supabase/client';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<AuthError | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{email?: string; password?: string}>({});
-  const [successMessage, setSuccessMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirectTo') || '/';
 
+  // Check if there's a saved email for "Remember Me"
   useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      const user = await getCurrentUser();
-      if (user) {
-        // User is already logged in, redirect to home
-        router.push('/');
-      }
-    };
-    
-    checkAuth();
-    
-    // Check if user was redirected from signup
-    const fromSignup = searchParams.get('signup');
-    if (fromSignup === 'success') {
-      setSuccessMessage('Account created successfully! Please log in.');
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
     }
-  }, [router, searchParams]);
+  }, []);
 
-  const validateForm = (): boolean => {
-    const errors: {email?: string; password?: string} = {};
-    let isValid = true;
-
-    // Reset errors
-    setFieldErrors({});
-    setError(null);
-
-    // Email validation
-    if (!email) {
-      errors.email = 'Email is required';
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = 'Email is invalid';
-      isValid = false;
-    }
-
-    // Password validation
-    if (!password) {
-      errors.password = 'Password is required';
-      isValid = false;
-    } else if (password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-      isValid = false;
-    }
-
-    setFieldErrors(errors);
-    return isValid;
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    
-    // Validate form
-    if (!validateForm()) {
-      return;
-    }
-    
-    setError(null);
-    setSuccessMessage('');
     setIsLoading(true);
-
+    setError(null);
+    
     try {
-      // Call the loginUser function from our auth service
-      await loginUser(email, password);
+      const supabase = createClient();
       
-      // Redirect to home after successful login
-      router.push('/');
-    } catch (err: unknown) {
-      const error = err as LoginError;
-      // Handle specific error messages from the auth service
-      if (error.message === 'Invalid credentials') {
-        setError({ message: 'Invalid email or password. Please try again.' });
-      } else if (error.message === 'User not found') {
-        setError({ message: 'No account found with this email. Please sign up first.' });
-      } else if (error.message.includes('network')) {
-        setError({ message: 'Network error. Please check your connection and try again.' });
-      } else {
-        setError({ message: 'Failed to log in. Please try again later.' });
+      // Sign in with password
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
       }
-      console.error('Login error:', error);
+
+      if (data?.user) {
+        // Set authentication state in localStorage
+        localStorage.setItem('auth_state', 'authenticated');
+        
+        // If "Remember Me" is checked, set a longer expiration (30 days)
+        // Otherwise, set a shorter expiration (1 day)
+        const expirationTime = rememberMe 
+          ? Date.now() + (30 * 24 * 60 * 60 * 1000) // 30 days
+          : Date.now() + (24 * 60 * 60 * 1000);     // 1 day
+        
+        localStorage.setItem('auth_time', Date.now().toString());
+        localStorage.setItem('auth_expiration', expirationTime.toString());
+        
+        // Save email for "Remember Me" functionality
+        if (rememberMe) {
+          localStorage.setItem('remembered_email', email);
+          
+          // Explicitly set session expiration to 30 days
+          const { data: sessionData, error: sessionError } = await supabase.auth.refreshSession();
+          if (sessionError) {
+            console.error('Error refreshing session:', sessionError);
+          }
+        } else {
+          localStorage.removeItem('remembered_email');
+        }
+        
+        router.refresh();
+        router.push(redirectTo);
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to sign in');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-      <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">Log In</h2>
+    <div className="max-w-md w-full space-y-8">
+      <div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Sign in to your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <Link href="/auth/signup" className="font-medium text-teal-600 hover:text-teal-500">
+            create a new account
+          </Link>
+        </p>
+      </div>
       
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded-md mb-4">
-          {error.message}
+        <div className="rounded-md bg-red-50 p-4 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 001.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-red-800">{error}</p>
+            </div>
+          </div>
         </div>
       )}
       
-      {successMessage && (
-        <div className="bg-green-50 text-green-700 p-3 rounded-md mb-4">
-          {successMessage}
+      <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+        <div className="rounded-md shadow-sm -space-y-px">
+          <div>
+            <label htmlFor="email-address" className="sr-only">Email address</label>
+            <input
+              id="email-address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="sr-only">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
         </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={`w-full border ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="you@example.com"
-          />
-          {fieldErrors.email && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-          )}
-        </div>
-        
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={`w-full border ${fieldErrors.password ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900`}
-            placeholder="••••••••"
-          />
-          {fieldErrors.password && (
-            <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
-          )}
-        </div>
-        
+
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <input
               id="remember-me"
+              name="remember-me"
               type="checkbox"
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
               Remember me
             </label>
           </div>
-          
-          <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:underline">
-            Forgot password?
-          </Link>
+          <div className="text-sm">
+            <Link href="/auth/forgot-password" className="font-medium text-teal-600 hover:text-teal-500">
+              Forgot your password?
+            </Link>
+          </div>
         </div>
-        
-        <button
-          type="submit"
-          disabled={isLoading}
-          className={`w-full bg-blue-600 text-white py-2 rounded-md font-medium ${
-            isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'
-          }`}
-        >
-          {isLoading ? 'Logging in...' : 'Log In'}
-        </button>
+
+        <div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50"
+          >
+            {isLoading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </div>
       </form>
-      
-      <p className="mt-8 text-center text-sm text-gray-600">
-        Don&apos;t have an account?{' '}
-        <Link href="/auth/signup" className="text-blue-600 hover:underline font-medium">
-          Sign up
-        </Link>
-      </p>
     </div>
   );
 };

@@ -1,46 +1,36 @@
-'use client';
+"use client";
 
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser } from '@/lib/auth0';
+import { createClient } from '@/utils/supabase/client';
 
-interface AuthCheckProps {
-  children: ReactNode;
-}
-
-const AuthCheck = ({ children }: AuthCheckProps) => {
-  const [loading, setLoading] = useState(true);
+export default function AuthCheck({ children }: { children: React.ReactNode }) {
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const checkAuth = async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!user) {
-          // Redirect to login if not authenticated
-          router.push('/auth/login');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking authentication:', error);
+      const supabase = createClient();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error || !user) {
         router.push('/auth/login');
-      } finally {
-        setLoading(false);
+        return;
       }
+      
+      setIsLoading(false);
     };
-    
+
     checkAuth();
   }, [router]);
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
   return <>{children}</>;
-};
-
-export default AuthCheck; 
+} 

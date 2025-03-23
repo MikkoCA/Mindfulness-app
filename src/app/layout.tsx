@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
+import { AuthProvider } from '@/contexts/AuthContext';
+// Import error handler to suppress cookie parsing errors
+import '@/lib/supabase/errorHandler';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,10 +36,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Header />
-        <main className="pt-16">
-          {children}
-        </main>
+        <AuthProvider>
+          <Header />
+          <main className="pt-16">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

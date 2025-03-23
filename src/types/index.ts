@@ -1,4 +1,6 @@
-export interface User {
+import { User as SupabaseUser } from '@supabase/supabase-js'
+
+export interface AppUser {
   id: string;
   email: string;
   name: string;
@@ -35,11 +37,9 @@ export interface Exercise {
   id: string;
   title: string;
   description: string;
+  category: 'breathing' | 'meditation' | 'other';
   duration: number;
-  category: 'meditation' | 'breathing' | 'mindfulness';
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  instructions: string[];
-  benefits: string[];
 }
 
 export interface MoodEntry {
@@ -55,7 +55,7 @@ export interface MoodEntry {
 
 export interface ActivityLog {
   id: string;
-  type: 'exercise' | 'mood' | 'chat';
+  type: 'mood' | 'exercise' | 'chat';
   date: string;
   details: string;
 }
@@ -69,3 +69,5 @@ export interface Session {
   notes?: string;
   timestamp: Date;
 }
+
+export type { SupabaseUser as User }

@@ -1,51 +1,64 @@
 // OpenRouter API integration for AI capabilities
 
-// Initialize the OpenRouter client
-export const initOpenRouter = () => {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  
-  if (!apiKey) {
-    console.error('OpenRouter API key is not defined in environment variables');
-    return null;
-  }
-  
-  return {
-    apiKey,
-    baseUrl: 'https://openrouter.ai/api/v1',
-  };
-};
-
 // Define the message format for OpenRouter API
-interface ChatMessage {
+export interface OpenRouterMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
 
-// Generate AI response using our API route
-export const generateAIResponse = async (
-  messages: ChatMessage[],
-  model: string = 'google/gemini-2.0-flash-001'
-): Promise<string> => {
+interface OpenRouterErrorResponse {
+  error: {
+    code: number;
+    message: string;
+    metadata?: Record<string, unknown>;
+  };
+}
+
+// Helper function to check if response matches error type
+function isOpenRouterError(data: any): data is OpenRouterErrorResponse {
+  return (
+    data &&
+    typeof data === 'object' &&
+    'error' in data &&
+    typeof data.error === 'object' &&
+    'message' in data.error
+  );
+}
+
+// Generate AI response using our server-side API route
+export const generateAIResponse = async (messages: OpenRouterMessage[]): Promise<string> => {
   try {
-    const response = await fetch('/api/chat', {
+    console.log('Sending request to OpenRouter via server API route');
+    
+    const response = await fetch('/api/openrouter', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
-        messages
-      })
+        messages,
+        model: 'google/gemini-2.0-pro-exp-02-05:free', // Using a reliable model that's available
+        temperature: 0.7,
+        maxTokens: 1000
+      }),
+      cache: 'no-store'
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`API error: ${response.status} - ${errorData.error || 'Unknown error'}`);
-    }
-    
+
     const data = await response.json();
-    return data.choices[0].message.content;
-    
+
+    // Check for API errors
+    if (!response.ok) {
+      console.error('OpenRouter API error:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      } else {
+        throw new Error(`API error: ${response.status} - ${response.statusText}`);
+      }
+    }
+
+    // Return the content from the response
+    return data.content;
   } catch (error) {
     console.error('Error generating AI response:', error);
     throw error;
@@ -54,74 +67,79 @@ export const generateAIResponse = async (
 
 // Function to generate a mindfulness exercise
 export const generateMindfulnessExercise = async (
-  type: string, 
+  type: string,
   duration: number
 ): Promise<string> => {
   try {
-    const systemPrompt = `You are a mindfulness coach specializing in ${type} exercises. 
-    Create a ${duration}-minute ${type} exercise that is calming and centering. 
-    EXTREMELY IMPORTANT: Return ONLY a raw JSON object WITHOUT any explanations, markdown, or formatting.
-    DO NOT wrap the JSON in code blocks, backticks, or any other syntax.
-    The response must be valid JSON that can be directly parsed.
-    Format:
-    {
-      "title": "Exercise Name",
-      "description": "Brief description of the exercise",
-      "duration": ${duration},
-      "category": "${type}",
-      "difficulty": "beginner" | "intermediate" | "advanced"
-    }`;
+    console.log(`Generating ${duration}-minute ${type} mindfulness exercise`);
     
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Create a ${duration}-minute ${type} exercise as a valid JSON object only` }
-    ];
-    
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const messages: OpenRouterMessage[] = [
+      {
+        role: 'system',
+        content: `You are a mindfulness coach specializing in ${type} exercises. 
+        Create a ${duration}-minute ${type} exercise that is calming and centering.
+        
+        Your response MUST be a valid JSON object with the following structure:
+        {
+          "title": "Title of the exercise",
+          "description": "Brief description of the exercise",
+          "duration": ${duration},
+          "category": "${type}",
+          "difficulty": "beginner|intermediate|advanced",
+          "steps": [
+            "Step 1 description",
+            "Step 2 description",
+            "..."
+          ]
+        }
+        
+        Do not include any text before or after the JSON. Return ONLY the JSON object.`
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
-        messages
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('OpenRouter API error response:', errorData);
-      throw new Error(`API error: ${response.status} - ${errorData.error || 'Unknown error'}`);
-    }
-    
-    const data = await response.json();
-    // eslint-disable-next-line prefer-const
-    const content = data.choices[0].message.content;
-    
-    // Clean the response of any markdown formatting
-    if (content.includes('```')) {
-      return content
-        .replace(/```(?:json|javascript|js|plaintext)?\s*([\s\S]*?)\s*```/g, '$1')
-        .replace(/`/g, '')
-        .trim();
-    }
-    
-    return content;
-    
+      {
+        role: 'user',
+        content: `Create a ${duration}-minute ${type} exercise in JSON format. Make sure it's properly structured and includes all required fields.`
+      }
+    ];
+
+    return await generateAIResponse(messages);
   } catch (error) {
-    console.error('Error generating mindfulness exercise:', error);
-    throw error;
+    console.error(`Error generating ${type} exercise:`, error);
+    throw new Error(`Failed to generate ${type} exercise: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
 // Function to analyze user's mood based on their input
 export const analyzeMood = async (userInput: string) => {
-  const systemPrompt = `You are an empathetic AI assistant trained to analyze emotional states from text. 
-  Analyze the following text and determine the likely emotional state of the user. 
-  Respond with a JSON object containing: mood (very_sad, sad, neutral, happy, very_happy) and a brief supportive message.`;
-  
-  return await generateAIResponse([
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userInput }
-  ]);
+  try {
+    console.log('Analyzing mood from user input');
+    
+    const systemPrompt = `You are an empathetic AI assistant trained to analyze emotional states from text. 
+    Analyze the following text and determine the likely emotional state of the user. 
+    Respond with a JSON object containing: mood (very_sad, sad, neutral, happy, very_happy) and a brief supportive message.`;
+    
+    const messages: OpenRouterMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userInput }
+    ];
+    
+    const response = await generateAIResponse(messages);
+    
+    try {
+      // Attempt to parse the response as JSON
+      return JSON.parse(response);
+    } catch (parseError) {
+      console.error('Error parsing mood analysis response:', parseError);
+      // Fallback response if parsing fails
+      return {
+        mood: 'neutral',
+        message: 'Thank you for sharing your thoughts. Would you like to tell me more?'
+      };
+    }
+  } catch (error) {
+    console.error('Error analyzing mood:', error);
+    return {
+      mood: 'neutral',
+      message: 'I apologize, but I couldn\'t analyze your mood at this time. How can I assist you today?'
+    };
+  }
 }; 
