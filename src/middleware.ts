@@ -78,6 +78,10 @@ export async function middleware(req: NextRequest) {
       }
     }
 
+    // Add the required security headers
+    res.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+    res.headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+
     return res;
   } catch (error) {
     // Only log errors that aren't cookie parsing errors we want to ignore
@@ -102,12 +106,12 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except:
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

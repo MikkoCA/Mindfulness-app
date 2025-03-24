@@ -69,6 +69,34 @@ What would you like assistance with today?`,
 
   // Check if user has granted audio permission
   const checkAudioPermission = async () => {
+    // Check if we're in a secure context (HTTPS or localhost)
+    if (!window.isSecureContext) {
+      console.error('Audio recording requires a secure context (HTTPS)');
+      setAudioPermission(false);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Audio recording requires a secure connection (HTTPS). Please ensure you're using HTTPS.",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
+    // Check if the browser supports audio recording
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('Audio recording is not supported in this browser');
+      setAudioPermission(false);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Your browser doesn't support audio recording. Please try using a modern browser like Chrome, Firefox, or Safari.",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       // Stop the tracks immediately after getting permission
@@ -77,6 +105,13 @@ What would you like assistance with today?`,
     } catch (err) {
       console.error('Audio permission denied:', err);
       setAudioPermission(false);
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Please allow microphone access in your browser settings to use voice messages.",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
@@ -752,16 +787,21 @@ What would you like assistance with today?`,
       // Create FFmpeg instance
       const ffmpeg = new FFmpeg();
       
-      // Load FFmpeg core
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      // Load FFmpeg core from a more reliable CDN
+      const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
+      console.log('Loading FFmpeg from:', baseURL);
+      
       try {
         await ffmpeg.load({
-          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript', true),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm', true),
         });
+        console.log('FFmpeg loaded successfully');
       } catch (loadError) {
         console.error('Failed to load FFmpeg:', loadError);
-        throw new Error('Failed to initialize audio converter');
+        // If FFmpeg fails to load, return the original blob
+        console.log('Falling back to original audio format');
+        return audioBlob;
       }
       
       console.log('FFmpeg loaded, starting conversion...');
