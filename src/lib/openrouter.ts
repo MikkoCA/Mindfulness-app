@@ -71,21 +71,33 @@ export const generateMindfulnessExercise = async (
   duration: number
 ): Promise<string> => {
   try {
+    // Validate exercise type
+    const validTypes = ['breathing', 'meditation', 'body-scan', 'mindful-walking', 'gratitude', 'visualization', 'other'];
+    if (!validTypes.includes(type)) {
+      throw new Error(`Invalid exercise type. Must be one of: ${validTypes.join(', ')}`);
+    }
+
+    // Validate duration
+    if (duration < 1 || duration > 60) {
+      throw new Error('Duration must be between 1 and 60 minutes');
+    }
+
     console.log(`Generating ${duration}-minute ${type} mindfulness exercise`);
     
     const messages: OpenRouterMessage[] = [
       {
         role: 'system',
-        content: `You are a mindfulness coach specializing in ${type} exercises. 
-        Create a ${duration}-minute ${type} exercise that is calming and centering.
+        content: `You are a mindfulness coach specializing in ${type.replace('-', ' ')} exercises. 
+        Create a ${duration}-minute ${type.replace('-', ' ')} exercise that is calming and centering.
         
-        Your response MUST be a valid JSON object with the following structure:
+        CRITICAL: You must return a raw JSON object WITHOUT any markdown formatting, code blocks, or backticks.
+        The response must be EXACTLY in this format (no additional text or formatting):
         {
           "title": "Title of the exercise",
           "description": "Brief description of the exercise",
           "duration": ${duration},
           "category": "${type}",
-          "difficulty": "beginner|intermediate|advanced",
+          "difficulty": "beginner",
           "steps": [
             "Step 1 description",
             "Step 2 description",
@@ -93,15 +105,70 @@ export const generateMindfulnessExercise = async (
           ]
         }
         
-        Do not include any text before or after the JSON. Return ONLY the JSON object.`
+        STRICT RULES:
+        1. NO markdown formatting (no \`\`\`, no code blocks)
+        2. NO text before or after the JSON
+        3. NO comments or explanations
+        4. ONLY the raw JSON object
+        5. All fields must be present
+        6. Use double quotes for strings
+        7. No trailing commas
+        8. Steps must be an array of strings
+        9. Duration must be ${duration}
+        10. Category must be "${type}"
+        11. Difficulty must be "beginner"`
       },
       {
         role: 'user',
-        content: `Create a ${duration}-minute ${type} exercise in JSON format. Make sure it's properly structured and includes all required fields.`
+        content: `Create a ${duration}-minute ${type} exercise. Return ONLY a raw JSON object without any formatting or markdown.`
       }
     ];
 
-    return await generateAIResponse(messages);
+    const response = await generateAIResponse(messages);
+    
+    // Clean the response of any markdown formatting
+    let cleanedResponse = response
+      // Remove markdown code block syntax
+      .replace(/```(?:json|javascript|js)?\s*/g, '')
+      .replace(/\s*```\s*/g, '')
+      // Remove any backticks
+      .replace(/`/g, '')
+      // Trim whitespace
+      .trim();
+
+    // Validate JSON response
+    try {
+      const parsed = JSON.parse(cleanedResponse);
+      
+      // Validate required fields and types
+      if (!parsed.title || typeof parsed.title !== 'string') {
+        throw new Error('Missing or invalid title');
+      }
+      if (!parsed.description || typeof parsed.description !== 'string') {
+        throw new Error('Missing or invalid description');
+      }
+      if (!parsed.duration || parsed.duration !== duration) {
+        throw new Error('Missing or incorrect duration');
+      }
+      if (!parsed.category || parsed.category !== type) {
+        throw new Error('Missing or incorrect category');
+      }
+      if (!parsed.difficulty || parsed.difficulty !== 'beginner') {
+        throw new Error('Missing or incorrect difficulty');
+      }
+      if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
+        throw new Error('Missing or invalid steps array');
+      }
+      if (!parsed.steps.every((step: unknown) => typeof step === 'string')) {
+        throw new Error('Steps must be strings');
+      }
+
+      return cleanedResponse;
+    } catch (parseError) {
+      console.error('Raw response:', response);
+      console.error('Cleaned response:', cleanedResponse);
+      throw new Error(`Invalid JSON response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+    }
   } catch (error) {
     console.error(`Error generating ${type} exercise:`, error);
     throw new Error(`Failed to generate ${type} exercise: ${error instanceof Error ? error.message : String(error)}`);
