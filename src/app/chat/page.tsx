@@ -717,18 +717,6 @@ What would you like assistance with today?`,
       // Process the audio
       await processAudioInput(audioBlob);
       
-      // Clean up
-      try {
-        const audioMeta = JSON.parse(audioUrl);
-        URL.revokeObjectURL(audioMeta.url);
-      } catch (e) {
-        // Fallback for legacy format
-        URL.revokeObjectURL(audioUrl);
-      }
-      
-      setAudioUrl(null);
-      setIsReviewingAudio(false);
-      setRecordingTime(0);
     } catch (error) {
       console.error('Error sending audio:', error);
       // Show an error message
@@ -739,7 +727,7 @@ What would you like assistance with today?`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
-      
+    } finally {
       // Clean up
       try {
         const audioMeta = JSON.parse(audioUrl);
