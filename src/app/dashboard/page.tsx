@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [recentActivities, setRecentActivities] = useState<ActivityLog[]>([]);
   const [recommendedExercises, setRecommendedExercises] = useState<Exercise[]>([]);
   const [weeklyMoodAverage, setWeeklyMoodAverage] = useState<number | null>(null);
+  const [monthlyMoodAverage, setMonthlyMoodAverage] = useState<number | null>(null);
 
   // First useEffect for fetching user stats from Supabase
   useEffect(() => {
@@ -149,7 +150,7 @@ export default function Dashboard() {
     const savedMoods = localStorage.getItem('mood_entries');
     if (savedMoods) {
       const moodEntries = JSON.parse(savedMoods);
-      calculateWeeklyMoodAverage(moodEntries);
+      calculateAverages(moodEntries);
     }
 
     // Load exercises
@@ -163,17 +164,33 @@ export default function Dashboard() {
     generateActivityLog();
   }, [user, weeklyMoodAverage]); // Added user as dependency
 
-  const calculateWeeklyMoodAverage = (moods: MoodEntry[]) => {
+  const formatMoodLabel = (mood: string): string => {
+    return mood.split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const calculateAverages = (moods: MoodEntry[]) => {
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
     const weekMoods = moods.filter(mood => 
       new Date(mood.date) >= oneWeekAgo && new Date(mood.date) <= now
     );
 
+    const monthMoods = moods.filter(mood => 
+      new Date(mood.date) >= oneMonthAgo && new Date(mood.date) <= now
+    );
+
     if (weekMoods.length > 0) {
-      const average = weekMoods.reduce((sum, mood) => sum + mood.moodValue, 0) / weekMoods.length;
-      setWeeklyMoodAverage(parseFloat(average.toFixed(1)));
+      const weeklyAvg = weekMoods.reduce((sum, mood) => sum + mood.moodValue, 0) / weekMoods.length;
+      setWeeklyMoodAverage(parseFloat(weeklyAvg.toFixed(1)));
+    }
+
+    if (monthMoods.length > 0) {
+      const monthlyAvg = monthMoods.reduce((sum, mood) => sum + mood.moodValue, 0) / monthMoods.length;
+      setMonthlyMoodAverage(parseFloat(monthlyAvg.toFixed(1)));
     }
   };
 
@@ -187,7 +204,7 @@ export default function Dashboard() {
         id: mood.id,
         type: 'mood',
         date: mood.date,
-        details: `Logged mood: ${mood.mood}`
+        details: `Logged mood: ${formatMoodLabel(mood.mood)}`
       });
     });
 
@@ -406,15 +423,15 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Weekly Average</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{getMoodEmoji(weeklyMoodAverage)}</span>
-                        <span className="font-bold text-gray-800">{weeklyMoodAverage.toFixed(1)}</span>
+                        <span className="text-2xl">{getMoodEmoji(weeklyMoodAverage || 0)}</span>
+                        <span className="font-bold text-gray-800">{weeklyMoodAverage?.toFixed(1) || 'No data'}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-600">Monthly Average</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{getMoodEmoji(weeklyMoodAverage)}</span>
-                        <span className="font-bold text-gray-800">{weeklyMoodAverage.toFixed(1)}</span>
+                        <span className="text-2xl">{getMoodEmoji(monthlyMoodAverage || 0)}</span>
+                        <span className="font-bold text-gray-800">{monthlyMoodAverage?.toFixed(1) || 'No data'}</span>
                       </div>
                     </div>
                     <div className="mt-4">
@@ -422,7 +439,7 @@ export default function Dashboard() {
                       <div className="relative h-2 bg-[rgb(203,251,241)] rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
-                          animate={{ width: `${(weeklyMoodAverage + 5) * 10}%` }}
+                          animate={{ width: `${((weeklyMoodAverage || 0) / 5) * 100}%` }}
                           transition={{ duration: 0.6 }}
                           className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-600 to-emerald-600 rounded-full"
                         />

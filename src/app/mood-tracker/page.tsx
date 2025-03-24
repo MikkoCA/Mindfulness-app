@@ -77,21 +77,83 @@ export default function MoodTracker() {
   const [moodHistory, setMoodHistory] = useState<MoodEntry[]>([]);
   const [view, setView] = useState<'log' | 'history' | 'insights'>('log');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [factorStats, setFactorStats] = useState<Record<string, { count: number; avgMood: number }>>({});
   const [isMobile, setIsMobile] = useState(false);
 
-  useEffect(() => {
-    // Load mood history
-    const savedMoods = localStorage.getItem('mood_entries');
-    if (savedMoods) {
-      const entries = JSON.parse(savedMoods);
-      setMoodHistory(entries);
-      calculateFactorStats(entries);
+  // Define animation variants
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+  };
+
+  const buttonVariants = {
+    hover: { scale: 1.05, y: -5 },
+    tap: { scale: 0.97 },
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 }
+  };
+
+  const emojiVariants = {
+    animate: { 
+      rotate: [0, -12, 12, -12, 0],
+      scale: [1, 1.1, 1.1, 1.1, 1],
+      transition: {
+        duration: 2,
+        repeat: Infinity,
+        repeatDelay: 1
+      }
     }
+  };
+
+  const factorButtonVariants = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    hover: { scale: 1.03, y: -2 },
+    tap: { scale: 0.97 }
+  };
+
+  const submitButtonVariants = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    hover: { scale: 1.02, y: -2 },
+    tap: { scale: 0.98 },
+    disabled: { scale: 1 }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeData = async () => {
+      try {
+        const savedMoods = localStorage.getItem('mood_entries');
+        if (savedMoods && mounted) {
+          const entries = JSON.parse(savedMoods);
+          if (Array.isArray(entries)) {
+            setMoodHistory(entries);
+            calculateFactorStats(entries);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading mood history:', error);
+        if (mounted) {
+          setMoodHistory([]);
+          setFactorStats({});
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeData();
 
     // Check if we're on mobile
     const checkIfMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      if (mounted) {
+        setIsMobile(window.innerWidth < 768);
+      }
     };
 
     // Initial check
@@ -100,8 +162,16 @@ export default function MoodTracker() {
     // Add event listener for window resize
     window.addEventListener('resize', checkIfMobile);
 
-    // Clean up event listener
-    return () => window.removeEventListener('resize', checkIfMobile);
+    // Clean up function
+    return () => {
+      mounted = false;
+      window.removeEventListener('resize', checkIfMobile);
+      // Clean up any pending state updates
+      setIsSubmitting(false);
+      setSelectedMood(null);
+      setNote('');
+      setSelectedFactors([]);
+    };
   }, []);
 
   const calculateFactorStats = (entries: MoodEntry[]) => {
@@ -133,30 +203,48 @@ export default function MoodTracker() {
   const handleSubmit = async () => {
     if (!selectedMood || !user) return;
 
-    setIsSubmitting(true);
-    
-    const newEntry: MoodEntry = {
-      id: Date.now().toString(),
-      userId: user.id,
-      mood: selectedMood.value,
-      moodValue: selectedMood.score,
-      date: new Date().toISOString(),
-      timestamp: new Date(),
-      notes: note,
-      factors: selectedFactors
-    };
+    try {
+      setIsSubmitting(true);
+      
+      const newEntry: MoodEntry = {
+        id: Date.now().toString(),
+        userId: user.id,
+        mood: selectedMood.value,
+        moodValue: selectedMood.score,
+        date: new Date().toISOString(),
+        timestamp: new Date(),
+        notes: note,
+        factors: selectedFactors
+      };
 
-    const updatedHistory = [newEntry, ...moodHistory];
-    setMoodHistory(updatedHistory);
-    localStorage.setItem('mood_entries', JSON.stringify(updatedHistory));
-    calculateFactorStats(updatedHistory);
+      // Update history first
+      const updatedHistory = [newEntry, ...moodHistory];
+      
+      // Save to localStorage with error handling
+      try {
+        localStorage.setItem('mood_entries', JSON.stringify(updatedHistory));
+      } catch (storageError) {
+        console.error('Failed to save to localStorage:', storageError);
+        // Continue execution even if localStorage fails
+      }
 
-    // Reset form
-    setSelectedMood(null);
-    setNote('');
-    setSelectedFactors([]);
-    setIsSubmitting(false);
-    setView('history');
+      // Update states in sequence
+      setMoodHistory(updatedHistory);
+      calculateFactorStats(updatedHistory);
+
+      // Reset form states
+      setSelectedMood(null);
+      setNote('');
+      setSelectedFactors([]);
+      
+      // Finally, update view and submission state
+      setView('history');
+    } catch (error) {
+      console.error('Error saving mood:', error);
+      // You might want to show an error message to the user here
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getMoodTrend = (): string => {
@@ -190,16 +278,15 @@ export default function MoodTracker() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     
-    const relevantEntries = moodHistory.filter(
-      entry => new Date(entry.date) >= cutoff
-    );
+    const relevantEntries = moodHistory.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate >= cutoff;
+    });
 
     // If we have entries but none in the specified time period,
-    // use all available entries instead of returning null
+    // return null instead of using all entries
     if (relevantEntries.length === 0) {
-      // Use all entries if we don't have any in the specified time period
-      const allEntriesAverage = moodHistory.reduce((sum, entry) => sum + entry.moodValue, 0) / moodHistory.length;
-      return parseFloat(allEntriesAverage.toFixed(2));
+      return null;
     }
 
     const average = relevantEntries.reduce((sum, entry) => sum + entry.moodValue, 0) / relevantEntries.length;
@@ -216,10 +303,86 @@ export default function MoodTracker() {
     });
   };
 
+  const formatMoodLabel = (mood: string): string => {
+    return mood.split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const renderFactorButton = (factor: typeof factors[0], index: number) => (
+    <motion.button
+      key={factor.id}
+      onClick={() => {
+        setSelectedFactors(prev => 
+          prev.includes(factor.id)
+            ? prev.filter(f => f !== factor.id)
+            : [...prev, factor.id]
+        );
+      }}
+      variants={factorButtonVariants}
+      initial="initial"
+      animate="animate"
+      whileHover="hover"
+      whileTap="tap"
+      transition={{ 
+        duration: 0.4, 
+        delay: 0.3 + (index * 0.05)
+      }}
+      className={`group flex items-center p-4 rounded-xl transition-all ${
+        selectedFactors.includes(factor.id)
+          ? 'bg-[rgb(203,251,241)] ring-2 ring-teal-200 shadow-xl shadow-teal-500/20'
+          : 'bg-white/90 hover:bg-[rgb(203,251,241)] shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20'
+      }`}
+    >
+      <motion.span 
+        className="text-2xl mr-3"
+        variants={emojiVariants}
+        animate="animate"
+      >
+        {factor.icon}
+      </motion.span>
+      <div>
+        <span className="text-sm font-semibold text-gray-700">{factor.label}</span>
+        <p className="text-xs text-gray-500 mt-1">{factor.description}</p>
+      </div>
+    </motion.button>
+  );
+
+  const renderSubmitButton = () => (
+    <motion.button
+      onClick={handleSubmit}
+      disabled={!selectedMood || isSubmitting}
+      variants={submitButtonVariants}
+      initial="initial"
+      animate="animate"
+      whileHover={!selectedMood || isSubmitting ? "disabled" : "hover"}
+      whileTap={!selectedMood || isSubmitting ? "disabled" : "tap"}
+      transition={{ duration: 0.4, delay: 0.7 }}
+      className={`w-full py-4 px-6 rounded-xl text-white font-semibold text-lg transition-all ${
+        !selectedMood || isSubmitting
+          ? 'bg-gray-300 cursor-not-allowed'
+          : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30'
+      }`}
+    >
+      {isSubmitting ? (
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
+          Saving your mood...
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-lg">✨</span>
+          <span>Save Mood</span>
+        </div>
+      )}
+    </motion.button>
+  );
+
   const renderMoodLog = () => (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
       transition={{ duration: 0.6 }}
       className="space-y-6"
     >
@@ -232,34 +395,25 @@ export default function MoodTracker() {
             <motion.button
               key={option.value}
               onClick={() => setSelectedMood(option)}
-              whileHover={{ scale: 1.05, y: -5, rotateX: 5 }}
-              whileTap={{ scale: 0.97 }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              variants={buttonVariants}
+              initial="initial"
+              animate="animate"
+              whileHover="hover"
+              whileTap="tap"
               transition={{ 
                 duration: 0.4, 
-                delay: index * 0.08,
-                type: "spring",
-                stiffness: 300,
-                damping: 25
+                delay: index * 0.08 
               }}
-              className={`group flex flex-col items-center justify-center p-6 rounded-xl transition-all transform perspective-1000 ${
+              className={`group flex flex-col items-center justify-center p-6 rounded-xl transition-all ${
                 selectedMood?.value === option.value
                   ? `${option.color} bg-opacity-15 ring-2 ring-opacity-70 ring-offset-4 ring-[rgb(203,251,241)]`
                   : 'bg-white/90 hover:bg-[rgb(203,251,241)] shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20'
               }`}
             >
               <motion.div 
-                className="text-4xl mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-12"
-                animate={{ 
-                  rotate: selectedMood?.value === option.value ? [0, -12, 12, -12, 0] : 0,
-                  scale: selectedMood?.value === option.value ? [1, 1.1, 1.1, 1.1, 1] : 1
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: selectedMood?.value === option.value ? Infinity : 0,
-                  repeatDelay: 1
-                }}
+                className="text-4xl mb-3"
+                variants={emojiVariants}
+                animate="animate"
               >
                 {option.emoji}
               </motion.div>
@@ -281,61 +435,16 @@ export default function MoodTracker() {
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">What factors are affecting your mood?</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {factors.map((factor, index) => (
-              <motion.button
-                key={factor.id}
-                onClick={() => {
-                  setSelectedFactors(prev => 
-                    prev.includes(factor.id)
-                      ? prev.filter(f => f !== factor.id)
-                      : [...prev, factor.id]
-                  );
-                }}
-                whileHover={{ scale: 1.03, y: -2, rotateX: 5 }}
-                whileTap={{ scale: 0.97 }}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ 
-                  duration: 0.4, 
-                  delay: 0.3 + (index * 0.05),
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 25
-                }}
-                className={`group flex items-center p-4 rounded-xl transition-all transform perspective-1000 ${
-                  selectedFactors.includes(factor.id)
-                    ? 'bg-[rgb(203,251,241)] ring-2 ring-teal-200 shadow-xl shadow-teal-500/20'
-                    : 'bg-white/90 hover:bg-[rgb(203,251,241)] shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20'
-                }`}
-              >
-                <motion.span 
-                  className="text-2xl mr-3"
-                  animate={{ 
-                    rotate: selectedFactors.includes(factor.id) ? [0, -12, 12, -12, 0] : 0,
-                    scale: selectedFactors.includes(factor.id) ? [1, 1.1, 1.1, 1.1, 1] : 1
-                  }}
-                  transition={{ 
-                    duration: 2,
-                    repeat: selectedFactors.includes(factor.id) ? Infinity : 0,
-                    repeatDelay: 1
-                  }}
-                >
-                  {factor.icon}
-                </motion.span>
-                <div>
-                  <span className="text-sm font-semibold text-gray-700">{factor.label}</span>
-                  <p className="text-xs text-gray-500 mt-1">{factor.description}</p>
-                </div>
-              </motion.button>
-            ))}
+            {factors.map((factor, index) => renderFactorButton(factor, index))}
           </div>
         </div>
 
         {/* Note Section */}
         <motion.div 
           className="mb-8"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
           transition={{ duration: 0.4, delay: 0.6 }}
         >
           <label className="block text-lg font-semibold text-gray-800 mb-3">
@@ -357,32 +466,7 @@ export default function MoodTracker() {
         </motion.div>
 
         {/* Submit Button */}
-        <motion.button
-          onClick={handleSubmit}
-          disabled={!selectedMood || isSubmitting}
-          whileHover={!selectedMood || isSubmitting ? {} : { scale: 1.02, y: -2 }}
-          whileTap={!selectedMood || isSubmitting ? {} : { scale: 0.98 }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.7 }}
-          className={`w-full py-4 px-6 rounded-xl text-white font-semibold text-lg transition-all ${
-            !selectedMood || isSubmitting
-              ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 shadow-xl shadow-teal-500/20 hover:shadow-2xl hover:shadow-teal-500/30'
-          }`}
-        >
-          {isSubmitting ? (
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-              Saving your mood...
-            </div>
-          ) : (
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-lg">✨</span>
-              <span>Save Mood</span>
-            </div>
-          )}
-        </motion.button>
+        {renderSubmitButton()}
       </div>
     </motion.div>
   );
@@ -407,7 +491,7 @@ export default function MoodTracker() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
-                  className="group bg-white/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20 transition-all hover:-translate-y-1 transform perspective-1000"
+                  className="group bg-white/90 backdrop-blur-sm rounded-xl overflow-hidden shadow-xl shadow-teal-500/10 hover:shadow-2xl hover:shadow-teal-500/20 transition-all hover:-translate-y-1"
                 >
                   {/* Header with background color */}
                   <div className={`${moodOption?.color} bg-opacity-10 p-5`}>
@@ -427,7 +511,7 @@ export default function MoodTracker() {
                         >
                           {moodOption?.emoji}
                         </motion.span>
-                        <span className="font-semibold text-gray-800">{moodOption?.label}</span>
+                        <span className="font-semibold text-gray-800">{formatMoodLabel(entry.mood)}</span>
                       </div>
                       <span className="text-sm bg-white/90 backdrop-blur-sm text-gray-600 px-3 py-1.5 rounded-lg shadow-lg">
                         {formatDate(entry.date)}
@@ -661,10 +745,12 @@ export default function MoodTracker() {
                           repeatDelay: 3
                         }}
                       >
-                        {getAverageMood(7) ? moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : '📊'}
+                        {getAverageMood(7) !== null ? 
+                          moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : 
+                          '📊'}
                       </motion.span>
                       <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
-                        {getAverageMood(7)?.toFixed(1) || '-'}/5
+                        {getAverageMood(7) !== null ? `${getAverageMood(7)?.toFixed(1)}/5` : 'No data'}
                       </span>
                     </div>
                   </div>
@@ -747,6 +833,17 @@ export default function MoodTracker() {
     </motion.div>
   );
 
+  // Add loading state check in render
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-teal-50 to-emerald-50 p-4 md:p-8">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-teal-500 border-t-transparent"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-screen bg-gradient-to-br from-[rgb(203,251,241)] via-white to-[rgb(203,251,241)]">
@@ -807,10 +904,12 @@ export default function MoodTracker() {
             >
               <div className="flex items-center justify-center mb-3">
                 <span className="text-3xl mr-3">
-                  {getAverageMood(7) ? moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : '📊'}
+                  {getAverageMood(7) !== null ? 
+                    moodOptions.find(m => m.score === Math.round(getAverageMood(7) || 0))?.emoji : 
+                    '📊'}
                 </span>
                 <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
-                  {getAverageMood(7) ? `${getAverageMood(7)}/5` : '-'}
+                  {getAverageMood(7) !== null ? `${getAverageMood(7)?.toFixed(1)}/5` : 'No data'}
                 </span>
               </div>
               <div className="text-sm text-gray-500 text-center font-medium">7-Day Average</div>
@@ -822,10 +921,12 @@ export default function MoodTracker() {
             >
               <div className="flex items-center justify-center mb-3">
                 <span className="text-3xl mr-3">
-                  {getAverageMood(30) ? moodOptions.find(m => m.score === Math.round(getAverageMood(30) || 0))?.emoji : '📊'}
+                  {getAverageMood(30) !== null ? 
+                    moodOptions.find(m => m.score === Math.round(getAverageMood(30) || 0))?.emoji : 
+                    '📊'}
                 </span>
                 <span className="text-lg font-semibold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600">
-                  {getAverageMood(30) ? `${getAverageMood(30)}/5` : '-'}
+                  {getAverageMood(30) !== null ? `${getAverageMood(30)?.toFixed(1)}/5` : 'No data'}
                 </span>
               </div>
               <div className="text-sm text-gray-500 text-center font-medium">30-Day Average</div>
