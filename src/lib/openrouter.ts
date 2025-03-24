@@ -37,7 +37,7 @@ export const generateAIResponse = async (messages: OpenRouterMessage[]): Promise
       },
       body: JSON.stringify({
         messages,
-        model: 'google/gemini-2.0-pro-exp-02-05:free', // Using a reliable model that's available
+        model: 'google/gemini-2.0-flash-001', // Using a reliable model that's available
         temperature: 0.7,
         maxTokens: 1000
       }),

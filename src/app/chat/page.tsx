@@ -128,8 +128,40 @@ What would you like assistance with today?`,
 
   // Format text to handle markdown-style formatting
   const formatContent = (content: string) => {
-    // Replace *text* with <strong>text</strong> for bold formatting
-    return content.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+    // First, handle numbered items with proper spacing
+    content = content.replace(/(\d+\.)\s+/g, '<br/><strong class="text-lg">$1</strong> ');
+
+    // Handle the special case of "How to:*" and "Benefit:*" formatting
+    content = content.replace(/(How to|Benefit):\*/g, (match) => {
+      const label = match.replace(':*', '');
+      return `<br/><strong class="text-teal-700 inline-block mt-2">${label}:</strong>`;
+    });
+
+    // Handle bullet points with asterisks
+    content = content.replace(/\n\s*\*/g, '<br/>•');
+
+    // Handle any remaining asterisks for emphasis
+    content = content.replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+
+    // Add proper spacing after bullet points
+    content = content.replace(/•\s*/g, '• ');
+
+    // Add spacing after numbered items (e.g., "1. ")
+    content = content.replace(/(\d+\.\s)/g, '<br/>$1 ');
+
+    // Add extra line breaks between sections
+    content = content.replace(/(\d+\.\s[^\d]+)(?=\d+\.|$)/g, '$1<br/><br/>');
+
+    // Add proper spacing after colons in labels
+    content = content.replace(/(How to|Benefit):<\/strong>/g, '$1:</strong>&nbsp;');
+
+    // Clean up any excessive line breaks
+    content = content.replace(/(<br\/>){3,}/g, '<br/><br/>');
+
+    // Add proper paragraph spacing
+    content = content.replace(/(How to:|Benefit:)/g, '<br/>$1');
+
+    return content;
   };
 
   // Function to simulate typing animation for AI responses
@@ -169,90 +201,53 @@ What would you like assistance with today?`,
 
   const getAIResponse = async (conversationHistory: { role: string; content: string }[]) => {
     try {
-      // Use our server-side API route instead of calling OpenRouter directly
+      // Limit conversation history to last 10 messages to prevent token limit issues
+      const limitedHistory = conversationHistory.slice(-10);
+      
+      // Add system message for context
+      const fullConversation = [{
+        role: 'system',
+        content: `You are a mindfulness and meditation assistant, trained to help users with:
+- Guided meditation and relaxation
+- Breathing exercises and techniques
+- Stress management and anxiety relief
+- Mindfulness practices and mental wellness
+- Sleep improvement and relaxation techniques
+
+Respond in a calm, supportive manner. Keep responses focused and practical.`
+      }, ...limitedHistory];
+
+      // Use our server-side API route
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: conversationHistory
+          messages: fullConversation
         })
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Chat API error:', errorData);
         throw new Error(`API error: ${response.status}`);
       }
       
       const data = await response.json();
       
-      // Extract the response content from OpenRouter's response format
+      // Extract the response content
       const responseContent = data.choices?.[0]?.message?.content || 
                             data.choices?.[0]?.delta?.content ||
-                            data.output ||
-                            getFallbackResponse(conversationHistory[conversationHistory.length - 1].content);
+                            data.output;
+                            
+      if (!responseContent) {
+        throw new Error('No response content received');
+      }
       
       return responseContent;
     } catch (error) {
       console.error('Error calling Chat API:', error);
-      return getFallbackResponse(conversationHistory[conversationHistory.length - 1].content);
+      throw error; // Let the calling function handle the error
     }
-  };
-
-  const getFallbackResponse = (userMessage: string) => {
-    // Fallback responses if API fails
-    const keywords = {
-      meditation: [
-        "Try this simple meditation exercise: Find a comfortable position, close your eyes, and focus on your breath for 5 minutes.",
-        "Mindful meditation involves bringing your attention to the present moment without judgment.",
-        "Body scan meditation can help you become aware of tension in your body and release it."
-      ],
-      breathing: [
-        "Box breathing is effective for stress: inhale for 4 counts, hold for 4, exhale for 4, hold for 4, and repeat.",
-        "When you feel anxious, try the 4-7-8 technique: inhale for 4 seconds, hold for 7 seconds, exhale for 8 seconds.",
-        "Diaphragmatic breathing helps activate your parasympathetic nervous system, reducing stress."
-      ],
-      stress: [
-        "Regular mindfulness practice can reduce stress by helping you respond rather than react to stressors.",
-        "Consider taking short mindful breaks throughout your day to reset and reduce accumulated stress.",
-        "The body-mind connection is powerful - physical relaxation through gentle stretching can help mental stress."
-      ],
-      sleep: [
-        "A body scan meditation before bed can help prepare your body and mind for restful sleep.",
-        "Try to reduce screen time at least 30 minutes before bed and practice a calming breathing exercise instead.",
-        "Progressive muscle relaxation is effective for overcoming insomnia and improving sleep quality."
-      ],
-      anxiety: [
-        "When anxiety arises, try grounding yourself with the 5-4-3-2-1 technique: acknowledge 5 things you see, 4 things you feel, 3 things you hear, 2 things you smell, and 1 thing you taste.",
-        "Mindful walking can help with anxiety by combining gentle physical activity with present-moment awareness.",
-        "Remember that thoughts are not facts - observing anxious thoughts without attaching to them is a core mindfulness skill."
-      ]
-    };
-    
-    // Default responses if no keywords match
-    const defaultResponses = [
-      "Mindfulness is about being fully present in the moment without judgment.",
-      "Regular practice is key to developing mindfulness skills. Even 5 minutes daily can make a difference.",
-      "Would you like to learn about meditation techniques, breathing exercises, or stress management practices?",
-      "Consider integrating mindful moments throughout your day - while drinking tea, walking, or even washing dishes.",
-      "How are you feeling right now? Taking a moment to check in with yourself is a mindful practice."
-    ];
-    
-    // Check for keyword matches
-    let possibleResponses = defaultResponses;
-    const lowercaseMessage = userMessage.toLowerCase();
-    
-    for (const [topic, responses] of Object.entries(keywords)) {
-      if (lowercaseMessage.includes(topic)) {
-        possibleResponses = responses;
-        break;
-      }
-    }
-    
-    // Select a random response from relevant category
-    return possibleResponses[Math.floor(Math.random() * possibleResponses.length)];
   };
 
   // Start recording audio
@@ -689,22 +684,25 @@ What would you like assistance with today?`,
         }
       ]);
       
-      // Get AI response
-      const aiResponseContent = await getAIResponse(conversationHistory);
-      
-      // Start typing animation with the full response
-      simulateTyping(aiResponseContent, aiMessageId);
-    } catch (error) {
-      console.error('Error getting AI response:', error);
-      
-      // Show error message to user
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "I'm sorry, I encountered an error while processing your request. Please try again later.",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorResponse]);
+      try {
+        // Get AI response
+        const aiResponseContent = await getAIResponse(conversationHistory);
+        
+        // Start typing animation with the full response
+        simulateTyping(aiResponseContent, aiMessageId);
+      } catch (error) {
+        // Remove the typing indicator message
+        setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
+        
+        // Show error message to user
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I apologize, but I'm having trouble connecting to my AI service right now. Please try again in a moment.",
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
       setIsLoading(false);
     }

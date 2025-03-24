@@ -6,7 +6,7 @@ import { OpenRouterMessage } from '@/lib/openrouter';
 export async function POST(request: Request) {
   try {
     // Get request body
-    const { messages, model = 'google/gemini-2.0-pro-exp-02-05:free', temperature = 0.7, maxTokens = 1000 } = await request.json();
+    const { messages, model = 'google/gemini-2.0-flash-001', temperature = 0.7, maxTokens = 10000 } = await request.json();
     
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
