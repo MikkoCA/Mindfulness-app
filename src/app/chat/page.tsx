@@ -53,13 +53,18 @@ What would you like assistance with today?`,
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const initialRenderRef = useRef(true);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView();
   };
 
   useEffect(() => {
-    scrollToBottom();
+    if (initialRenderRef.current) {
+      initialRenderRef.current = false;
+    } else {
+      scrollToBottom();
+    }
   }, [messages]);
 
   // Check for audio permission on component mount
