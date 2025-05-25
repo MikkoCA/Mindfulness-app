@@ -45,11 +45,11 @@ export default function RootLayout({
         <AuthProvider>
           <AudioSettingsProvider>
             <ScrollToTop />
-            <Header />
-            <main className="pt-16">
-              {children}
-            </main>
-            <AmbientPlayer />
+          <Header />
+          <main className="pt-16">
+            {children}
+          </main>
+          <AmbientPlayer />
           </AudioSettingsProvider>
         </AuthProvider>
       </body>
