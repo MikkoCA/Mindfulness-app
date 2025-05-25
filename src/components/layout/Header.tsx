@@ -77,7 +77,7 @@ const Header = () => {
           </Link>
           
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-8">
+          <nav className="hidden md:flex space-x-8 items-center">
             <Link href="/" className={isActive('/')}>
               Home
             </Link>
@@ -103,10 +103,11 @@ const Header = () => {
                     {getUserInitials()}
                   </div>
                   <span className="text-gray-700">{getDisplayName()}</span>
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-teal-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 invisible group-hover:visible transition-all duration-200 opacity-0 group-hover:opacity-100">
-                  <Link href="/auth/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    Profile
+                  <Link href="/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    Settings
                   </Link>
                   <button 
                     onClick={handleLogout}
@@ -148,7 +149,7 @@ const Header = () => {
           <div className="md:hidden mt-4 pb-4">
             <nav className="flex flex-col space-y-3">
               <Link 
-                href="/" 
+                href="/"
                 className="text-gray-600 hover:text-teal-500 py-2"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -176,51 +177,53 @@ const Header = () => {
                 Mood Tracker
               </Link>
               
-              <div className="pt-3 border-t border-gray-200">
-                {user ? (
-                  <>
-                    <div className="flex items-center space-x-2 py-2">
-                      <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-800 font-medium">
-                        {getUserInitials()}
-                      </div>
-                      <span className="text-gray-700 font-medium">{getDisplayName()}</span>
+              {/* Mobile User Menu Items */}
+              {user && (
+                <div className="pt-3 border-t border-gray-200">
+                  <div className="flex items-center space-x-2 py-2 mb-1">
+                    <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-800 font-medium">
+                      {getUserInitials()}
                     </div>
-                    <Link 
-                      href="/auth/profile" 
-                      className="block text-gray-600 hover:text-teal-500 py-2"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Profile
-                    </Link>
-                    <button 
-                      onClick={() => {
-                        handleLogout();
-                        setIsMenuOpen(false);
-                      }}
-                      className="text-gray-600 hover:text-teal-500 py-2"
-                    >
-                      Logout
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link 
-                      href="/auth/login" 
-                      className="block text-gray-600 hover:text-teal-500 py-2"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Login
-                    </Link>
-                    <Link 
-                      href="/auth/signup" 
-                      className="block text-teal-500 font-medium py-2"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Sign Up
-                    </Link>
-                  </>
-                )}
-              </div>
+                    <span className="text-gray-700 font-medium">{getDisplayName()}</span>
+                  </div>
+                  <Link 
+                    href="/settings" 
+                    className="block text-gray-600 hover:text-teal-500 py-2"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Settings
+                  </Link>
+                  <button 
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full text-left text-gray-600 hover:text-teal-500 py-2"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+
+              {/* Mobile Login/Signup Buttons */}
+              {!user && !isLoading && (
+                <div className="pt-3 border-t border-gray-200 space-y-3">
+                  <Link 
+                    href="/auth/login" 
+                    className="block text-center w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link 
+                    href="/auth/signup" 
+                    className="block text-center w-full bg-teal-500 text-white px-4 py-2 rounded-md hover:bg-teal-600 transition"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
             </nav>
           </div>
         )}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAudioSettings } from '@/contexts/AudioSettingsContext';
 import AuthGuard from '@/components/auth/AuthGuard';
 import { motion } from 'framer-motion';
 
@@ -46,6 +47,7 @@ const DEFAULT_STEP_TIMING: Record<string, number[]> = {
 export default function ExercisePage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { settings: audioSettings } = useAudioSettings();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +332,12 @@ export default function ExercisePage() {
     if (typeof window !== 'undefined') {
       bellSound.current = new Audio('/sounds/bell.mp3');
       tickSound.current = new Audio('/sounds/tick.mp3');
+      if (bellSound.current) {
+        bellSound.current.volume = audioSettings.masterVolume;
+      }
+      if (tickSound.current) {
+        tickSound.current.volume = audioSettings.masterVolume;
+      }
     }
     
     // Cleanup function
@@ -342,7 +350,7 @@ export default function ExercisePage() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, processExerciseContent]);
+  }, [id, processExerciseContent, audioSettings.masterVolume]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -357,9 +365,11 @@ export default function ExercisePage() {
     
     // Play completion sound
     if (bellSound.current) {
+      bellSound.current.volume = audioSettings.masterVolume;
       bellSound.current.play().catch(e => console.error('Error playing sound:', e));
       setTimeout(() => {
         if (bellSound.current) {
+          bellSound.current.volume = audioSettings.masterVolume;
           bellSound.current.play().catch(e => console.error('Error playing sound:', e));
         }
       }, 1500);
@@ -371,7 +381,7 @@ export default function ExercisePage() {
       completedExercises.push(id);
       localStorage.setItem('completed_exercises', JSON.stringify(completedExercises));
     }
-  }, [id]);
+  }, [id, audioSettings.masterVolume]);
 
   // Timer functionality
   useEffect(() => {
@@ -405,6 +415,7 @@ export default function ExercisePage() {
           if (newStep !== currentStep) {
             setCurrentStep(newStep);
             if (bellSound.current) {
+              bellSound.current.volume = audioSettings.masterVolume;
               bellSound.current.play().catch(e => console.error('Error playing sound:', e));
             }
           }
@@ -429,7 +440,7 @@ export default function ExercisePage() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isActive, isPaused, stepTimings, currentStep, totalTime, handleComplete]);
+  }, [isActive, isPaused, stepTimings, currentStep, totalTime, handleComplete, audioSettings.masterVolume]);
 
   // Fix for the breathing cycle implementation
   useEffect(() => {
@@ -497,6 +508,7 @@ export default function ExercisePage() {
     setIsActive(true);
     setIsPaused(false);
     if (bellSound.current) {
+      bellSound.current.volume = audioSettings.masterVolume;
       bellSound.current.play().catch(e => console.error('Error playing sound:', e));
     }
   };
@@ -770,10 +782,18 @@ export default function ExercisePage() {
       </div>
 
       {/* Audio elements */}
-      <audio ref={bellSound} preload="auto">
+      <audio
+        ref={bellSound}
+        preload="auto"
+        onCanPlay={(e) => { e.currentTarget.volume = audioSettings.masterVolume; }}
+      >
         <source src="/sounds/bell.mp3" type="audio/mpeg" />
       </audio>
-      <audio ref={tickSound} preload="auto">
+      <audio
+        ref={tickSound}
+        preload="auto"
+        onCanPlay={(e) => { e.currentTarget.volume = audioSettings.masterVolume; }}
+      >
         <source src="/sounds/tick.mp3" type="audio/mpeg" />
       </audio>
     </AuthGuard>
