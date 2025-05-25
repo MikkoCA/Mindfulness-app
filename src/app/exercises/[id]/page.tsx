@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAudioSettings } from '@/contexts/AudioSettingsContext';
 import AuthGuard from '@/components/auth/AuthGuard';
 import { motion } from 'framer-motion';
 
@@ -47,7 +46,6 @@ const DEFAULT_STEP_TIMING: Record<string, number[]> = {
 export default function ExercisePage() {
   const { id } = useParams();
   const { user } = useAuth();
-  const { settings: audioSettings } = useAudioSettings();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -330,14 +328,8 @@ export default function ExercisePage() {
     
     // Initialize audio elements
     if (typeof window !== 'undefined') {
-      // bellSound.current = new Audio('/sounds/bell.mp3');
-      if (bellSound.current) {
-        bellSound.current.volume = audioSettings.masterVolume;
-      }
-      // tickSound.current = new Audio('/sounds/tick.mp3');
-      if (tickSound.current) {
-        tickSound.current.volume = audioSettings.masterVolume;
-      }
+      bellSound.current = new Audio('/sounds/bell.mp3');
+      tickSound.current = new Audio('/sounds/tick.mp3');
     }
     
     // Cleanup function
@@ -365,11 +357,9 @@ export default function ExercisePage() {
     
     // Play completion sound
     if (bellSound.current) {
-      bellSound.current.volume = audioSettings.masterVolume;
       bellSound.current.play().catch(e => console.error('Error playing sound:', e));
       setTimeout(() => {
         if (bellSound.current) {
-          bellSound.current.volume = audioSettings.masterVolume;
           bellSound.current.play().catch(e => console.error('Error playing sound:', e));
         }
       }, 1500);
@@ -415,7 +405,6 @@ export default function ExercisePage() {
           if (newStep !== currentStep) {
             setCurrentStep(newStep);
             if (bellSound.current) {
-              bellSound.current.volume = audioSettings.masterVolume;
               bellSound.current.play().catch(e => console.error('Error playing sound:', e));
             }
           }
@@ -508,7 +497,6 @@ export default function ExercisePage() {
     setIsActive(true);
     setIsPaused(false);
     if (bellSound.current) {
-      bellSound.current.volume = audioSettings.masterVolume;
       bellSound.current.play().catch(e => console.error('Error playing sound:', e));
     }
   };
@@ -782,18 +770,10 @@ export default function ExercisePage() {
       </div>
 
       {/* Audio elements */}
-      <audio
-        ref={bellSound}
-        preload="auto"
-        onCanPlay={(e) => { e.currentTarget.volume = audioSettings.masterVolume; }}
-      >
+      <audio ref={bellSound} preload="auto">
         <source src="/sounds/bell.mp3" type="audio/mpeg" />
       </audio>
-      <audio
-        ref={tickSound}
-        preload="auto"
-        onCanPlay={(e) => { e.currentTarget.volume = audioSettings.masterVolume; }}
-      >
+      <audio ref={tickSound} preload="auto">
         <source src="/sounds/tick.mp3" type="audio/mpeg" />
       </audio>
     </AuthGuard>
